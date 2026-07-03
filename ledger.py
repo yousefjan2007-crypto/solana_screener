@@ -136,6 +136,13 @@ def update_forward(now_s: float, snapshot_fn, report_fn=None) -> int:
     return filled
 
 
+def _fmt_ret(v) -> str:
+    """A return cell: signed % if filled, or '·' if that horizon hasn't matured yet."""
+    if str(v) in _EMPTY:
+        return "    ·"
+    return f"{float(v) * 100:+5.0f}%"
+
+
 def summary() -> None:
     led = load()
     n = len(led)
@@ -143,6 +150,21 @@ def summary() -> None:
     if n == 0:
         print("  (nothing logged yet — run `python3 run.py --commit` to start tracking)")
         return
+
+    # ── per-token results (winners first) ────────────────────────────────────────
+    led = led.copy()
+    led["_mx"] = pd.to_numeric(led["max_ret_seen"], errors="coerce").fillna(-9.0)
+    led = led.sort_values("_mx", ascending=False)
+    print(f"  {'symbol':12s} {'1h':>6s} {'6h':>6s} {'24h':>6s} {'7d':>6s}  {'best':>6s}  status")
+    for _, r in led.iterrows():
+        flag = "  RUGGED" if str(r["rugged_after"]).lower() == "true" else ""
+        print(f"  {str(r['symbol'])[:12]:12s} "
+              f"{_fmt_ret(r['ret_1h'])} {_fmt_ret(r['ret_6h'])} "
+              f"{_fmt_ret(r['ret_24h'])} {_fmt_ret(r['ret_7d'])}  "
+              f"{_num(r['max_ret_seen'])*100:+5.0f}%  {r['status']}{flag}")
+    print()
+
+    # ── aggregate scorecard ──────────────────────────────────────────────────────
     for h in HORIZ:
         r = pd.to_numeric(led[f"ret_{h}"], errors="coerce").dropna()
         if len(r):

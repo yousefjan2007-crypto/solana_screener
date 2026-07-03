@@ -93,36 +93,34 @@ def update_forward(now_s: float, snapshot_fn, report_fn=None) -> int:
     filled = 0
     last_h = list(HORIZ)[-1]
     for i in led.index:
+        if str(led.at[i, "status"]) == "resolved":
+            continue  # 7d horizon already recorded → stop spending API calls on it
         entry = _num(led.at[i, "entry_price"])
         if entry <= 0:
             continue
         alert_ts = _num(led.at[i, "alert_ts"])
         mint = str(led.at[i, "mint"])
-        snap = None
+
+        # One live snapshot per open row per run. Beyond filling the fixed horizons, we
+        # use it to track the hourly HIGH-WATER mark, so `max_ret_seen` reflects whether a
+        # coin ever ran — not just where it happened to sit at 1h/6h/24h/7d. A dead token
+        # (no price) counts as -100%.
+        snap = snapshot_fn(mint) or {}
+        cur_price = _num(snap.get("price_usd"))
+        cur_ret = (cur_price / entry - 1.0) if cur_price > 0 else -1.0
+        led.at[i, "max_ret_seen"] = max(cur_ret, _num(led.at[i, "max_ret_seen"]))
+        led.at[i, "min_ret_seen"] = min(cur_ret, _num(led.at[i, "min_ret_seen"]))
+
         for hname, hsec in HORIZ.items():
             col = f"ret_{hname}"
             if str(led.at[i, col]) not in _EMPTY:
                 continue
             if now_s - alert_ts < hsec:
                 continue
-            if snap is None:
-                snap = snapshot_fn(mint) or {}
-            price = _num(snap.get("price_usd"))
-            if price <= 0:
-                led.at[i, f"price_{hname}"] = 0.0
-                led.at[i, f"mcap_{hname}"] = 0.0
-                led.at[i, col] = -1.0
-            else:
-                led.at[i, f"price_{hname}"] = price
-                led.at[i, f"mcap_{hname}"] = _num(snap.get("mcap"))
-                led.at[i, col] = price / entry - 1.0
+            led.at[i, f"price_{hname}"] = cur_price if cur_price > 0 else 0.0
+            led.at[i, f"mcap_{hname}"] = _num(snap.get("mcap")) if cur_price > 0 else 0.0
+            led.at[i, col] = cur_ret
             filled += 1
-
-        rets = [_num(led.at[i, f"ret_{h}"]) for h in HORIZ
-                if str(led.at[i, f"ret_{h}"]) not in _EMPTY]
-        if rets:
-            led.at[i, "max_ret_seen"] = max(rets + [_num(led.at[i, "max_ret_seen"])])
-            led.at[i, "min_ret_seen"] = min(rets + [_num(led.at[i, "min_ret_seen"])])
 
         if report_fn is not None and str(led.at[i, "rugged_after"]).lower() != "true":
             rep = report_fn(mint)

@@ -1,0 +1,36 @@
+name: solana-screener
+
+on:
+  schedule:
+    - cron: "17 * * * *"        # every hour at :17 (offset off the congested top-of-hour)
+  workflow_dispatch: {}          # lets you run it on demand from the Actions tab
+
+permissions:
+  contents: write                # to commit the ledger + anti-spam state back
+
+concurrency:
+  group: screener
+  cancel-in-progress: false      # never interrupt a run mid-write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Run screener
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python run.py --send
+      - name: Persist ledger + alert state
+        run: |
+          git config user.name "solana-screener[bot]"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/
+          git commit -m "screener state $(date -u +%FT%TZ)" || echo "no state change"
+          git push || true

@@ -25,6 +25,8 @@ DATA_DIR = os.path.join(ROOT, "data")     # ledger + state — COMMITTED back on
 CACHE_DIR = os.path.join(ROOT, "cache")   # ephemeral API caches — gitignored
 LEDGER_PATH = os.path.join(DATA_DIR, "ledger.csv")
 STATE_PATH = os.path.join(DATA_DIR, "alert_state.json")
+SCAN_PATH = os.path.join(DATA_DIR, "latest_scan.json")
+DOCS_DIR = os.path.join(ROOT, "docs")   # GitHub Pages source (the phone dashboard)
 for _d in (DATA_DIR, CACHE_DIR):
     os.makedirs(_d, exist_ok=True)
 
@@ -59,6 +61,15 @@ DANGER_RISK_BLOCKLIST = [
     "mint authority", "freeze authority", "top 10 holders", "single holder",
     "low liquidity", "lp unlocked", "honeypot",
 ]
+# Insider/bundle gates (research-backed: funding-graph clustering is the #1 validated
+# bundled-scam signal; RugCheck computes the networks for us in the report we already
+# fetch — insiderNetworks / graphInsidersDetected / creatorTokens).
+INSIDER_NETWORK_MAX_PCT = 10.0   # max % of supply held by clustered insider networks
+GRAPH_INSIDERS_MAX = 30          # max wallets RugCheck's graph clustering flags as insiders
+CREATOR_MAX_PRIOR_TOKENS = 3     # serial deployers = scam factories (Solidus: 18% of
+                                 # creators produce most rugs; one creator seen with 50)
+CREATOR_DEAD_MCAP_USD = 30_000.0 # a prior launch below this mcap counts as dead
+CREATOR_MAX_DEAD_FRAC = 0.5      # reject if > half of prior launches are dead (min 2 prior)
 
 # ── SOFT SCORE (rank survivors 0-100) ─────────────────────────────────────────────
 HOLDERS_SAFE = 1000          # DEXTools: >1000 safe
@@ -83,6 +94,19 @@ MAX_CONCURRENT = 10          # don't let alerts imply >100% deployed
 HARD_STOP_PCT = 0.50         # -50% hard stop (memecoins gap; wider than equities)
 TP_LADDER = [(2.0, 0.50), (5.0, 0.25), (10.0, 0.15)]  # (multiple, fraction to sell)
 MOONBAG_PCT = 0.10           # remainder rides
+
+# ── A-TIER (high-conviction) alert band ──────────────────────────────────────────
+# HONESTY NOTE: "A-tier" means best SURVIVAL odds under every gate + top-band quality
+# signals — not predicted ROI. Nothing predicts the next 100x; insider presence predicts
+# dumps, not pumps. B-tier survivors are logged to the ledger but NOT alerted, so the
+# ledger accumulates an honest A-vs-B test of whether this tier earns its name.
+HC_MIN_SCORE = 70.0              # soft score floor for A-tier
+HC_INSIDER_NETWORK_MAX_PCT = 0.0 # A-tier tolerates NO detected insider-network supply
+HC_GRAPH_INSIDERS_MAX = 5        # ...and at most a handful of graph-flagged wallets
+HC_CREATOR_MAX_PRIOR = 1         # first or second launch only
+HC_TOP10_MAX_PCT = 20.0          # DEXTools "safe" line, tighter than the 40% hard gate
+HC_MIN_HOLDERS = 1000            # DEXTools "safe" line
+HC_MIN_LIQ_USD = 25_000.0        # deeper exit pool than the $10k hard floor
 
 # ── alerting ──────────────────────────────────────────────────────────────────────
 ALERT_TOP_N = 5

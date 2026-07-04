@@ -28,7 +28,7 @@ can measure the screen's **real** hit-rate over time.
 | `http_client.py` | stdlib urllib + certifi, per-host throttle, retry, gzip, disk cache. |
 | `sources/dexscreener.py` | Discovery (profiles/boosts) + market enrichment (liquidity/vol/mcap/age). |
 | `sources/rugcheck.py` | Discovery (`new_tokens`) + safety report → normalized gate inputs. |
-| `screen.py` | **Pure/deterministic** hard gates + soft score. |
+| `screen.py` | **Pure/deterministic** hard gates + soft score + A-tier test. |
 | `ledger.py` | Track-record CSV: entry snapshot + forward returns (1h/6h/24h/7d). |
 | `alerts.py` | macOS / ntfy / Telegram delivery + ranked body with the trade plan. |
 | `run.py` | One-shot orchestrator (`--commit` / `--send`). |
@@ -55,6 +55,27 @@ python3 run.py --commit   # write ledger + state, still no alerts
 python3 run.py --send     # write AND push alerts
 python3 ledger.py         # your honest scorecard, once rows have matured
 ```
+
+## Insider/bundle gates + the A-tier band (v2)
+
+Bundled launches (supply split across 10-25 fresh wallets bought in the launch slot) look
+clean on top-10 concentration — that's how $ITSY/$BULLION-shaped scams passed v1. v2 adds
+three gates from RugCheck report fields v1 ignored, all free:
+
+- **`insiderNetworks`** — RugCheck's funding-graph clustering (the research-validated #1
+  bundle signal). Reject if clustered networks hold > `INSIDER_NETWORK_MAX_PCT` of supply.
+- **`graphInsidersDetected`** — reject if > `GRAPH_INSIDERS_MAX` wallets cluster as insiders.
+- **`creatorTokens`** — serial-deployer history. Reject creators with too many prior
+  launches or a mostly-dead track record (scam factories).
+
+**Alerts now fire ONLY for A-tier** tokens (every gate + `HC_*` thresholds: zero insider
+networks, fresh creator, safe-band top10/holders/liquidity, score ≥ 70). B-tier survivors
+are silently ledgered as a control group — `python3 ledger.py` prints an A-vs-B scorecard.
+If A doesn't beat B, the band is not adding signal; loosen or rethink it.
+
+**A-tier means best *survival* odds, not predicted ROI.** The research is blunt: insider
+presence predicts dumps, not pumps; ~84% of graduated pump.fun tokens were high-risk and
+60% collapsed within 20 minutes of migrating. No screen finds "the next 100x" in advance.
 
 ## Tuning
 

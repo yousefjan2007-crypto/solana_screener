@@ -115,6 +115,22 @@ def safety_features(rep: dict | None) -> dict:
     creator_bal = _f(rep.get("creatorBalance"))
     dev_pct = (creator_bal / supply * 100.0) if supply > 0 else 0.0
 
+    # Insider networks — RugCheck's own funding-graph clustering (wallets linked by
+    # transfers/common funding). This is the signal that catches BUNDLED launches which
+    # look clean on top-10 concentration: supply split across many "unrelated" fresh
+    # wallets that are actually one entity. tokenAmount is in raw units; supply-relative.
+    nets = rep.get("insiderNetworks") or []
+    insider_net_amount = sum(_f(n.get("tokenAmount")) for n in nets)
+    insider_networks_pct = (insider_net_amount / supply * 100.0) if supply > 0 else 0.0
+    graph_insiders = int(_f(rep.get("graphInsidersDetected")))
+
+    # Serial-deployer history: creatorTokens lists the creator's PRIOR launches with
+    # their current market caps. Many prior launches, mostly dead => scam factory.
+    prior = rep.get("creatorTokens") or []
+    creator_prior_tokens = len(prior)
+    dead = sum(1 for t in prior if _f(t.get("marketCap")) < config.CREATOR_DEAD_MCAP_USD)
+    creator_dead_frac = (dead / creator_prior_tokens) if creator_prior_tokens else 0.0
+
     risks = rep.get("risks") or []
     danger = [r.get("name", "") for r in risks
               if str(r.get("level", "")).lower() == "danger"]
@@ -129,6 +145,10 @@ def safety_features(rep: dict | None) -> dict:
         "lp_locked_pct": lp_locked,
         "top10_pct": top10_pct,
         "insider_pct": insider_pct,
+        "insider_networks_pct": insider_networks_pct,
+        "graph_insiders": graph_insiders,
+        "creator_prior_tokens": creator_prior_tokens,
+        "creator_dead_frac": creator_dead_frac,
         "dev_pct": dev_pct,
         "total_holders": total_holders,
         "risk_score": _f(score),

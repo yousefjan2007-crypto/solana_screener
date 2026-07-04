@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="900">
+<title>solana_screener</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #0d1117; color: #e6edf3; font: 16px/1.45 -apple-system, "SF Pro Text",
+         Segoe UI, Roboto, sans-serif; padding: 16px; max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 20px; } h2 { font-size: 15px; color: #8b949e; margin: 22px 0 8px;
+       text-transform: uppercase; letter-spacing: .06em; }
+  .stamp { color: #8b949e; font-size: 13px; margin: 4px 0 14px; }
+  .card { display: block; background: #161b22; border: 1px solid #21262d; border-radius: 12px;
+          padding: 12px 14px; margin-bottom: 10px; text-decoration: none; color: inherit; }
+  .card.atier { border-color: #2ea043; box-shadow: 0 0 0 1px #2ea04355; }
+  .row1 { display: flex; align-items: baseline; gap: 10px; }
+  .sym { font-weight: 700; font-size: 18px; }
+  .score { margin-left: auto; font-weight: 700; font-size: 18px; color: #58a6ff; }
+  .score small { color: #8b949e; font-weight: 400; }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+  .badge.a { background: #2ea043; color: #fff; } .badge.b { background: #30363d; color: #8b949e; }
+  .row2 { display: flex; flex-wrap: wrap; gap: 4px 14px; color: #8b949e; font-size: 13px;
+          margin-top: 6px; }
+  .miss { color: #d29922; font-size: 12px; margin-top: 6px; }
+  .empty { color: #8b949e; background: #161b22; border: 1px dashed #30363d; border-radius: 12px;
+           padding: 14px; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid #21262d; }
+  th { color: #8b949e; font-weight: 600; }
+  .note { color: #8b949e; font-size: 12px; margin-top: 8px; }
+  footer { color: #6e7681; font-size: 12px; margin: 26px 0 8px; line-height: 1.5; }
+</style></head><body>
+<h1>solana_screener</h1>
+<div class="stamp">scanned 60 · enriched 57 ·
+  10 passed gates · <span id="ago" data-ts="1783181771.8922539">…</span>
+  · auto-reloads every 15&nbsp;min</div>
+<h2>A-tier (alerted)</h2><div class="empty">No A-tier coins this scan. Most scans have none — that is the filter doing its job, not a malfunction.</div>
+<h2>B-tier survivors (ledgered, never alerted)</h2>
+    <a class="card " href="https://dexscreener.com/solana/cejsrlxty3fr9zfj66zyouorlgdpth2ucd5dmamtufxp" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">womanlet</span><span class="badge b" title="top10 26% &gt; 20%">B</span>
+        <span class="score">72<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $30k</span><span>mcap $145k</span>
+        <span>vol24 $728k</span><span>age 3.3h</span>
+      </div>
+      <div class="row2">
+        <span>holders 1213</span><span>top10 25.9%</span>
+        <span>insider-nets 0%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: top10 26% &gt; 20%</div>
+    </a>
+    <a class="card " href="https://dexscreener.com/solana/b2dxjwyvj6urw8ppjgqq9ymabfpsuvzq8czeq6wxlyph" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">Balloon</span><span class="badge b" title="score 62 &lt; 70; top10 29% &gt; 20%">B</span>
+        <span class="score">62<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $18k</span><span>mcap $46k</span>
+        <span>vol24 $328k</span><span>age 27.8h</span>
+      </div>
+      <div class="row2">
+        <span>holders 747</span><span>top10 28.6%</span>
+        <span>insider-nets 0%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: score 62 &lt; 70; top10 29% &gt; 20%</div>
+    </a>
+    <a class="card " href="https://dexscreener.com/solana/ed9mpckq3f3ztrdbagvjrbou6ygvxpvurxrddfms75ab" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">ansemwifhat</span><span class="badge b" title="score 62 &lt; 70; top10 38% &gt; 20%">B</span>
+        <span class="score">62<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $18k</span><span>mcap $34k</span>
+        <span>vol24 $3.6M</span><span>age 25.1h</span>
+      </div>
+      <div class="row2">
+        <span>holders 64003</span><span>top10 38.2%</span>
+        <span>insider-nets 0%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: score 62 &lt; 70; top10 38% &gt; 20%</div>
+    </a>
+    <a class="card " href="https://dexscreener.com/solana/2kwfdwuazcids9l1tewpbj4dxdml2h4wzenxaklgwrhh" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">niglet</span><span class="badge b" title="score 58 &lt; 70; top10 29% &gt; 20%">B</span>
+        <span class="score">58<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $32k</span><span>mcap $160k</span>
+        <span>vol24 $580k</span><span>age 2.6h</span>
+      </div>
+      <div class="row2">
+        <span>holders 491</span><span>top10 29.4%</span>
+        <span>insider-nets 0%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: score 58 &lt; 70; top10 29% &gt; 20%</div>
+    </a>
+    <a class="card " href="https://dexscreener.com/solana/ekvttcsogawmzpzo4qe1bhzqqha6vcqznh5wtmh1nzkn" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">ANSEM</span><span class="badge b" title="score 56 &lt; 70; top10 33% &gt; 20%">B</span>
+        <span class="score">56<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $15k</span><span>mcap $38k</span>
+        <span>vol24 $409k</span><span>age 17.7h</span>
+      </div>
+      <div class="row2">
+        <span>holders 540</span><span>top10 32.7%</span>
+        <span>insider-nets 0%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: score 56 &lt; 70; top10 33% &gt; 20%</div>
+    </a>
+    <a class="card " href="https://dexscreener.com/solana/jcgbug9ddjduebcmzzqo2gapkn8vjtrszpif8mrzec8i" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">WEN</span><span class="badge b" title="score 51 &lt; 70; top10 33% &gt; 20%">B</span>
+        <span class="score">51<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $14k</span><span>mcap $30k</span>
+        <span>vol24 $147k</span><span>age 41.1h</span>
+      </div>
+      <div class="row2">
+        <span>holders 433</span><span>top10 32.5%</span>
+        <span>insider-nets 0%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: score 51 &lt; 70; top10 33% &gt; 20%</div>
+    </a>
+    <a class="card " href="https://dexscreener.com/solana/dmafl613xtipua3jfnyczavwt7xsiyf9cr3qmrmzqhb6" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">67</span><span class="badge b" title="score 46 &lt; 70">B</span>
+        <span class="score">46<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $338k</span><span>mcap $2.7M</span>
+        <span>vol24 $425k</span><span>age 6918.7h</span>
+      </div>
+      <div class="row2">
+        <span>holders 32599</span><span>top10 0.0%</span>
+        <span>insider-nets 0%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: score 46 &lt; 70</div>
+    </a>
+    <a class="card " href="https://dexscreener.com/solana/8wxzwpljk6qjmyyc1vhuennxrvw2nfgvqjgenv4mv8sy" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">Franklin</span><span class="badge b" title="score 42 &lt; 70">B</span>
+        <span class="score">42<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $52k</span><span>mcap $93k</span>
+        <span>vol24 $45k</span><span>age 5164.7h</span>
+      </div>
+      <div class="row2">
+        <span>holders 21543</span><span>top10 0.0%</span>
+        <span>insider-nets 0%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: score 42 &lt; 70</div>
+    </a>
+    <a class="card " href="https://dexscreener.com/solana/afayrfh7huynkv5mbvbnrhwx29m9jzul3ysgtqz69auv" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">LMAO!</span><span class="badge b" title="score 35 &lt; 70; insider networks hold 1.2% supply">B</span>
+        <span class="score">35<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $248k</span><span>mcap $2.9M</span>
+        <span>vol24 $221k</span><span>age 6229.3h</span>
+      </div>
+      <div class="row2">
+        <span>holders 11932</span><span>top10 16.2%</span>
+        <span>insider-nets 1%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: score 35 &lt; 70; insider networks hold 1.2% supply</div>
+    </a>
+    <a class="card " href="https://dexscreener.com/solana/8eixuojql5b6zhbyxx9ablh6mggv3uosdxrhbrzrteif" target="_blank" rel="noopener">
+      <div class="row1"><span class="sym">spurdo</span><span class="badge b" title="score 30 &lt; 70; insider networks hold 2.8% supply">B</span>
+        <span class="score">30<small>/100</small></span></div>
+      <div class="row2">
+        <span>liq $59k</span><span>mcap $493k</span>
+        <span>vol24 $203k</span><span>age 2125.2h</span>
+      </div>
+      <div class="row2">
+        <span>holders 1048</span><span>top10 29.4%</span>
+        <span>insider-nets 3%</span>
+        <span>creator priors 0</span>
+      </div>
+      <div class="miss">short of A: score 30 &lt; 70; insider networks hold 2.8% supply</div>
+    </a>
+<h2>Honest scorecard (A vs B)</h2><table><tr><th>tier</th><th>n</th>
+        <th>1h</th><th>6h</th><th>24h</th><th>7d</th><th>rugged</th></tr><tr><td>A (alerted)</td><td>9</td><td>22% / -33%</td><td>22% / -33%</td><td>22% / -33%</td><td>·</td><td>0%</td></tr><tr><td>B (silent control)</td><td>10</td><td>·</td><td>·</td><td>·</td><td>·</td><td>0%</td></tr></table>
+        <p class="note">cells = hit-rate / median return once a horizon matures. If tier A
+        doesn't clearly beat tier B, the A-band is not adding signal.</p>
+<footer>Probabilistic screen, NOT a guarantee. Solana memecoins are near-100%-loss-prone (~98.6% go to ~0). Risk only what you can lose. These are minutes-to-hours old, not first-block. Not financial advice. Ranked by survival-quality score, NOT predicted ROI —
+insider presence predicts dumps, not pumps.</footer>
+<script>
+  const el = document.getElementById('ago'), ts = +el.dataset.ts * 1000;
+  function tick() {
+    if (!ts) { el.textContent = 'no scan yet'; return; }
+    const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
+    el.textContent = 'updated ' + (m < 60 ? m + ' min ago' : (m/60).toFixed(1) + ' h ago');
+    if (m > 150) el.style.color = '#f85149';   // stale => the cloud job is broken
+  }
+  tick(); setInterval(tick, 30000);
+</script>
+</body></html>

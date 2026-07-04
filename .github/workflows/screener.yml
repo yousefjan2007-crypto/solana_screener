@@ -27,10 +27,12 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python run.py --send
-      - name: Persist ledger + alert state
+      - name: Render dashboard (GitHub Pages)
+        run: python dashboard.py
+      - name: Persist ledger + alert state + dashboard
         run: |
           git config user.name "solana-screener[bot]"
           git config user.email "bot@users.noreply.github.com"
-          git add data/
+          git add data/ docs/
           git commit -m "screener state $(date -u +%FT%TZ)" || echo "no state change"
           git push || true

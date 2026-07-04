@@ -24,7 +24,7 @@ import time
 import config
 import alerts
 import ledger
-from screen import hard_gates, soft_score
+from screen import hard_gates, high_conviction, soft_score
 from sources import dexscreener as dex
 from sources import rugcheck as rug
 
@@ -60,41 +60,52 @@ def run(dry_run: bool = True, send: bool = False) -> list[dict]:
         if not passed:
             continue
         score, _ = soft_score(m, safety)
+        is_a, hc_misses = high_conviction(m, safety, score)
         row = dict(m)
         row.update({
             "score": score,
+            "tier": "A" if is_a else "B",
+            "hc_misses": hc_misses,
             "total_holders": safety.get("total_holders"),
             "top10_pct": round(safety.get("top10_pct", 0.0), 1),
+            "insider_networks_pct": round(safety.get("insider_networks_pct", 0.0), 1),
+            "graph_insiders": safety.get("graph_insiders", 0),
+            "creator_prior_tokens": safety.get("creator_prior_tokens", 0),
             "rugcheck_score": safety.get("risk_score"),
             "gates": gates,
         })
         survivors.append(row)
 
     survivors.sort(key=lambda r: -r["score"])
-    print(f"{len(survivors)} passed the hard gates")
-    for s in survivors[:config.ALERT_TOP_N]:
-        print(f"  {s['symbol']:12.12s} score {s['score']:5.1f}  liq ${s['liq_usd']:>10,.0f}  "
-              f"mcap ${s['mcap']:>12,.0f}  top10 {s['top10_pct']:>4}%  "
-              f"age {s['pair_age_min']:>5.0f}m")
+    a_tier = [s for s in survivors if s["tier"] == "A"]
+    print(f"{len(survivors)} passed the hard gates ({len(a_tier)} A-tier)")
+    for s in survivors[:max(config.ALERT_TOP_N, len(a_tier))]:
+        print(f"  [{s['tier']}] {s['symbol']:12.12s} score {s['score']:5.1f}  "
+              f"liq ${s['liq_usd']:>10,.0f}  mcap ${s['mcap']:>12,.0f}  "
+              f"top10 {s['top10_pct']:>4}%  age {s['pair_age_min']:>5.0f}m"
+              + (f"  (short: {'; '.join(s['hc_misses'][:2])})" if s["hc_misses"] else ""))
 
-    # 4. anti-spam → alert only tokens not alerted within the cooldown window
+    # 4. anti-spam → ALERT ONLY A-TIER tokens not alerted within the cooldown window.
+    # B-tier survivors are logged to the ledger silently, so the ledger accumulates an
+    # honest A-vs-B comparison of whether the A-tier band actually earns its name.
     state = _load_state()
     cooldown = config.ALERT_COOLDOWN_HOURS * 3600
-    fresh = [s for s in survivors[:config.ALERT_TOP_N]
+    fresh = [s for s in a_tier[:config.ALERT_TOP_N]
              if now_s - float(state.get(s["mint"], 0)) >= cooldown]
     if fresh:
         title, body = alerts.format_alert(fresh)
         alerts.send_all(title, body, dry_run=not send)
     else:
-        print("(no fresh survivors to alert — all within cooldown or none passed)")
+        print("(no fresh A-tier survivors to alert — B-tier is ledgered, never alerted)")
 
-    # 5. persist: record new alerts, fill matured forward returns, update state
+    # 5. persist: record BOTH tiers in the ledger, fill matured forward returns, update state
     if not dry_run:
-        ledger.record_alerts(
-            [{"mint": s["mint"], "symbol": s["symbol"], "price": s["price_usd"],
-              "mcap": s["mcap"], "liq": s["liq_usd"], "score": s["score"],
-              "gates": s["gates"], "rugcheck_score": s.get("rugcheck_score")}
-             for s in fresh],
+        n_new = ledger.record_alerts(
+            [{"mint": s["mint"], "symbol": s["symbol"], "tier": s["tier"],
+              "price": s["price_usd"], "mcap": s["mcap"], "liq": s["liq_usd"],
+              "score": s["score"], "gates": s["gates"],
+              "rugcheck_score": s.get("rugcheck_score")}
+             for s in survivors],
             alert_ts=now_s,
         )
         filled = ledger.update_forward(
@@ -105,7 +116,13 @@ def run(dry_run: bool = True, send: bool = False) -> list[dict]:
         for s in fresh:
             state[s["mint"]] = now_s
         json.dump(state, open(config.STATE_PATH, "w"), indent=2)
-        print(f"committed: {len(fresh)} new ledger row(s), {filled} forward cell(s) filled")
+
+        # snapshot of this scan's full ranked list — the dashboard renders from this
+        json.dump({"scan_ts": now_s, "discovered": len(mints), "enriched": len(market),
+                   "survivors": survivors},
+                  open(config.SCAN_PATH, "w"), indent=2)
+        print(f"committed: {n_new} new ledger row(s) ({len(fresh)} alerted), "
+              f"{filled} forward cell(s) filled")
 
     return survivors
 

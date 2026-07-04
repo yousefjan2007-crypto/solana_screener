@@ -22,8 +22,8 @@ import config
 
 HORIZ = config.LEDGER_HORIZONS  # {"1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800}
 
-BASE_COLS = ["mint", "symbol", "alert_ts", "entry_price", "entry_mcap", "entry_liq",
-             "entry_score", "gate_results_json", "rugcheck_score"]
+BASE_COLS = ["mint", "symbol", "tier", "alert_ts", "entry_price", "entry_mcap",
+             "entry_liq", "entry_score", "gate_results_json", "rugcheck_score"]
 FWD_COLS: list[str] = []
 for _h in HORIZ:
     FWD_COLS += [f"price_{_h}", f"mcap_{_h}", f"ret_{_h}"]
@@ -35,7 +35,10 @@ _EMPTY = ("", "nan", "None", "NaN")
 
 def load() -> pd.DataFrame:
     if os.path.exists(config.LEDGER_PATH):
-        return pd.read_csv(config.LEDGER_PATH, dtype=str)
+        # astype(object): pandas >=3 makes dtype=str a STRICT string dtype that raises on
+        # the float/bool cell writes update_forward() does; object accepts mixed values on
+        # every pandas version (the cloud runner installs latest, the Mac runs 2.x).
+        return pd.read_csv(config.LEDGER_PATH, dtype=str).astype(object)
     return pd.DataFrame(columns=COLUMNS)
 
 
@@ -64,6 +67,7 @@ def record_alerts(rows: list[dict], alert_ts: float) -> int:
         rec = {c: "" for c in COLUMNS}
         rec.update({
             "mint": r["mint"], "symbol": r.get("symbol", "?"),
+            "tier": r.get("tier", "A"),  # pre-tier rows were all alerted => A
             "alert_ts": alert_ts, "entry_price": r.get("price", 0.0),
             "entry_mcap": r.get("mcap", 0.0), "entry_liq": r.get("liq", 0.0),
             "entry_score": r.get("score", 0.0),
@@ -152,25 +156,34 @@ def summary() -> None:
     # ── per-token results (winners first) ────────────────────────────────────────
     led = led.copy()
     led["_mx"] = pd.to_numeric(led["max_ret_seen"], errors="coerce").fillna(-9.0)
+    led["_tier"] = led["tier"].astype(str).where(led["tier"].astype(str).isin(["A", "B"]), "A")
     led = led.sort_values("_mx", ascending=False)
-    print(f"  {'symbol':12s} {'1h':>6s} {'6h':>6s} {'24h':>6s} {'7d':>6s}  {'best':>6s}  status")
+    print(f"  {'':2s}{'symbol':12s} {'1h':>6s} {'6h':>6s} {'24h':>6s} {'7d':>6s}  {'best':>6s}  status")
     for _, r in led.iterrows():
         flag = "  RUGGED" if str(r["rugged_after"]).lower() == "true" else ""
-        print(f"  {str(r['symbol'])[:12]:12s} "
+        print(f"  {r['_tier']:2s}{str(r['symbol'])[:12]:12s} "
               f"{_fmt_ret(r['ret_1h'])} {_fmt_ret(r['ret_6h'])} "
               f"{_fmt_ret(r['ret_24h'])} {_fmt_ret(r['ret_7d'])}  "
               f"{_num(r['max_ret_seen'])*100:+5.0f}%  {r['status']}{flag}")
     print()
 
-    # ── aggregate scorecard ──────────────────────────────────────────────────────
-    for h in HORIZ:
-        r = pd.to_numeric(led[f"ret_{h}"], errors="coerce").dropna()
-        if len(r):
-            print(f"  {h:>3s}: n={len(r):3d}  hit-rate={ (r > 0).mean()*100:4.0f}%  "
-                  f"median={r.median()*100:+6.1f}%  best={r.max()*100:+.0f}%  "
-                  f"worst={r.min()*100:+.0f}%")
-    ra = led["rugged_after"].astype(str).str.lower().eq("true").mean()
-    print(f"  rugged-after-passing-gates: {ra*100:.0f}%")
+    # ── aggregate scorecard, split by tier (A = alerted, B = silent control) ─────
+    for tier in ("A", "B"):
+        sub = led[led["_tier"] == tier]
+        if len(sub) == 0:
+            continue
+        print(f"  tier {tier} ({'alerted' if tier == 'A' else 'silent control'}), "
+              f"n={len(sub)}:")
+        for h in HORIZ:
+            r = pd.to_numeric(sub[f"ret_{h}"], errors="coerce").dropna()
+            if len(r):
+                print(f"    {h:>3s}: n={len(r):3d}  hit-rate={ (r > 0).mean()*100:4.0f}%  "
+                      f"median={r.median()*100:+6.1f}%  best={r.max()*100:+.0f}%  "
+                      f"worst={r.min()*100:+.0f}%")
+        ra = sub["rugged_after"].astype(str).str.lower().eq("true").mean()
+        print(f"    rugged-after-passing-gates: {ra*100:.0f}%")
+    print("  If tier A does not clearly beat tier B here, the A-tier band is NOT adding "
+          "signal — loosen/rethink it rather than trusting the label.")
     print("  Reminder: negative expectancy is the base rate. A losing scorecard here is "
           "the screen doing its job — telling you not to scale.")
 

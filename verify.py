@@ -12,7 +12,7 @@ from __future__ import annotations
 import inspect
 
 import screen
-from screen import hard_gates, soft_score
+from screen import hard_gates, high_conviction, soft_score
 from sources.rugcheck import safety_features
 
 
@@ -54,6 +54,51 @@ def main() -> None:
     # 4. forward-return math: 100 -> 250 is +150%
     entry, price_h = 100.0, 250.0
     check("forward return math (100->250 == +150%)", abs((price_h / entry - 1.0) - 1.5) < 1e-9)
+
+    # 5. BUNDLED-SCAM invariant (the $ITSY/$BULLION shape): clean top-10, LP locked,
+    # authorities revoked — but insider funding-graph networks hold real supply => reject.
+    clean = {"mint_authority_active": False, "freeze_authority_active": False,
+             "lp_locked_pct": 100, "top10_pct": 15, "insider_pct": 3, "dev_pct": 1,
+             "total_holders": 1500, "risk_score": 20, "rugged": False, "danger_risks": [],
+             "insider_networks_pct": 0.0, "graph_insiders": 0,
+             "creator_prior_tokens": 0, "creator_dead_frac": 0.0}
+    bundled = dict(clean, insider_networks_pct=25.0, graph_insiders=60)
+    okb, rb = hard_gates(m, bundled)
+    check("bundled launch (clean top-10, 25% insider networks) is rejected",
+          okb is False and rb["insider_net_ok"] is False)
+
+    # 6. serial deployer (many prior launches, mostly dead) is rejected
+    serial = dict(clean, creator_prior_tokens=50, creator_dead_frac=0.9)
+    oks, rs = hard_gates(m, serial)
+    check("serial deployer (50 prior launches, 90% dead) is rejected",
+          oks is False and rs["creator_ok"] is False)
+
+    # 7. insider-network share is computed from the raw report (amount/supply)
+    feat3 = safety_features({
+        "token": {"mintAuthority": None, "freezeAuthority": None, "supply": 1_000_000},
+        "insiderNetworks": [{"tokenAmount": 150_000}, {"tokenAmount": 70_000}],
+        "graphInsidersDetected": 42,
+        "creatorTokens": [{"marketCap": 5_000}, {"marketCap": 900_000}],
+    })
+    check("insider network pct = 22% from raw report",
+          abs(feat3["insider_networks_pct"] - 22.0) < 1e-9)
+    check("graph insiders + creator history extracted",
+          feat3["graph_insiders"] == 42 and feat3["creator_prior_tokens"] == 2
+          and abs(feat3["creator_dead_frac"] - 0.5) < 1e-9)
+
+    # 8. A-tier can NEVER be laxer than the hard gates: any insider-network presence,
+    # a big top10, or thin holders each individually disqualify A-tier.
+    hc_ok, _ = high_conviction(
+        {"liq_usd": 99_999, "vol_h24": 99_999, "mcap": 100_000}, clean, score=90.0)
+    check("pristine token IS A-tier", hc_ok is True)
+    for bad in (dict(clean, insider_networks_pct=1.0),
+                dict(clean, graph_insiders=6),
+                dict(clean, creator_prior_tokens=2),
+                dict(clean, top10_pct=25),
+                dict(clean, total_holders=500)):
+        hc_bad, _ = high_conviction(
+            {"liq_usd": 99_999, "vol_h24": 99_999, "mcap": 100_000}, bad, score=90.0)
+        check("A-tier rejects degraded variant", hc_bad is False)
 
     print("ALL INVARIANTS PASSED")
 

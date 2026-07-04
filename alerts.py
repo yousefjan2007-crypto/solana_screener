@@ -75,8 +75,10 @@ def _plan(entry_price: float) -> tuple[float, float, str]:
 
 
 def format_alert(survivors: list[dict]) -> tuple[str, str]:
-    """survivors: ranked list of market dicts carrying a 'score'. Returns (title, body)."""
-    title = f"solana_screener: {len(survivors)} candidate(s) passed the rug gates"
+    """survivors: ranked list of A-tier market dicts carrying a 'score'. Returns
+    (title, body). A-tier = every rug + insider/bundle gate passed AND top-band quality
+    — best survival odds, deliberately NOT phrased as predicted ROI."""
+    title = f"solana_screener A-TIER: {len(survivors)} passed every rug+insider gate"
     blocks = []
     for s in survivors:
         size, stop, tps = _plan(s.get("price_usd", 0.0))
@@ -86,6 +88,9 @@ def format_alert(survivors: list[dict]) -> tuple[str, str]:
             f"liq ${s.get('liq_usd', 0):,.0f}  age {s.get('pair_age_min', 0):.0f}m\n"
             f"   holders {s.get('total_holders', '?')}  top10 {s.get('top10_pct', '?')}%  "
             f"vol24 ${s.get('vol_h24', 0):,.0f}\n"
+            f"   insider-nets {s.get('insider_networks_pct', 0):.0f}%  "
+            f"graph-insiders {s.get('graph_insiders', 0)}  "
+            f"creator prior launches {s.get('creator_prior_tokens', 0)}\n"
             f"   PLAN: buy ~${size:.0f}  hard-stop ${stop:.6g} "
             f"(-{config.HARD_STOP_PCT*100:.0f}%)  TP {tps}\n"
             f"   {s.get('url', '')}"

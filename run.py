@@ -38,6 +38,32 @@ def _load_state() -> dict:
     return {}
 
 
+def screen_token(mint: str, m: dict) -> dict | None:
+    """Safety-fetch + hard gates + soft score + tier for ONE enriched token. Returns the
+    survivor row (market fields + score/tier/hc_misses/safety extracts) or None if it
+    fails the hard gates. Shared by the batch scan below and the live listener."""
+    safety = rug.safety_features(rug.report(mint))
+    passed, gates = hard_gates(m, safety)
+    if not passed:
+        return None
+    score, _ = soft_score(m, safety)
+    is_a, hc_misses = high_conviction(m, safety, score)
+    row = dict(m)
+    row.update({
+        "score": score,
+        "tier": "A" if is_a else "B",
+        "hc_misses": hc_misses,
+        "total_holders": safety.get("total_holders"),
+        "top10_pct": round(safety.get("top10_pct", 0.0), 1),
+        "insider_networks_pct": round(safety.get("insider_networks_pct", 0.0), 1),
+        "graph_insiders": safety.get("graph_insiders", 0),
+        "creator_prior_tokens": safety.get("creator_prior_tokens", 0),
+        "rugcheck_score": safety.get("risk_score"),
+        "gates": gates,
+    })
+    return row
+
+
 def run(dry_run: bool = True, send: bool = False) -> list[dict]:
     now_s = time.time()
 
@@ -52,29 +78,12 @@ def run(dry_run: bool = True, send: bool = False) -> list[dict]:
     market = dex.enrich(mints, now_s=now_s)
     print(f"enriched {len(market)} with market data")
 
-    # 3. screen: hard gates (RugCheck safety) → soft score
+    # 3. screen: hard gates (RugCheck safety) → soft score → tier
     survivors: list[dict] = []
     for mint, m in market.items():
-        safety = rug.safety_features(rug.report(mint))
-        passed, gates = hard_gates(m, safety)
-        if not passed:
-            continue
-        score, _ = soft_score(m, safety)
-        is_a, hc_misses = high_conviction(m, safety, score)
-        row = dict(m)
-        row.update({
-            "score": score,
-            "tier": "A" if is_a else "B",
-            "hc_misses": hc_misses,
-            "total_holders": safety.get("total_holders"),
-            "top10_pct": round(safety.get("top10_pct", 0.0), 1),
-            "insider_networks_pct": round(safety.get("insider_networks_pct", 0.0), 1),
-            "graph_insiders": safety.get("graph_insiders", 0),
-            "creator_prior_tokens": safety.get("creator_prior_tokens", 0),
-            "rugcheck_score": safety.get("risk_score"),
-            "gates": gates,
-        })
-        survivors.append(row)
+        row = screen_token(mint, m)
+        if row is not None:
+            survivors.append(row)
 
     survivors.sort(key=lambda r: -r["score"])
     a_tier = [s for s in survivors if s["tier"] == "A"]

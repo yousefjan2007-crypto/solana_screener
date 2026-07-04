@@ -31,7 +31,9 @@ can measure the screen's **real** hit-rate over time.
 | `screen.py` | **Pure/deterministic** hard gates + soft score + A-tier test. |
 | `ledger.py` | Track-record CSV: entry snapshot + forward returns (1h/6h/24h/7d). |
 | `alerts.py` | macOS / ntfy / Telegram delivery + ranked body with the trade plan. |
-| `run.py` | One-shot orchestrator (`--commit` / `--send`). |
+| `run.py` | One-shot orchestrator (`--commit` / `--send`); `screen_token()` shared with the listener. |
+| `listener.py` | 24/7 PumpPortal WebSocket: logs launches, screens graduations in seconds (launchd). |
+| `dashboard.py` | Renders `docs/index.html` (GitHub Pages phone dashboard) from the latest scan. |
 | `verify.py` | Asserts the load-bearing invariants. |
 
 ## Running it

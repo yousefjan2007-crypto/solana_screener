@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 *.out.log
 *.err.log
+data/launches_*.jsonl
+data/listener_state.json
+data/listener_events.jsonl

@@ -1,0 +1,15 @@
+{
+  "_readme": [
+    "S-TIER EXPERIMENT watch list. Add wallets as  address: label  pairs under 'wallets'.",
+    "The listener subscribes to their trades; when one BUYS a coin that passes the hard",
+    "rug+insider gates, you get an S-tier alert and the coin is tracked in the local",
+    "ledger_s.csv scorecard. The research basis: copy-trading historically profitable",
+    "wallets returned ~14% to the wallet but only ~3% to bot-speed copiers — at human",
+    "alert speed it is UNPROVEN, which is exactly what the S scorecard measures.",
+    "Where to find candidates: GMGN leaderboard (needs free key), kolscan.io, or wallets",
+    "you observe repeatedly early-and-profitable in data/launches_*.jsonl over time.",
+    "Quality bar: long track record across MANY independent coins, holds through, not a",
+    "same-slot sniper (those are the insiders whose exit you would be buying)."
+  ],
+  "wallets": {}
+}

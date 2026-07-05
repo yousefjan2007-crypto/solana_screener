@@ -27,6 +27,12 @@ LEDGER_PATH = os.path.join(DATA_DIR, "ledger.csv")
 STATE_PATH = os.path.join(DATA_DIR, "alert_state.json")
 SCAN_PATH = os.path.join(DATA_DIR, "latest_scan.json")
 DOCS_DIR = os.path.join(ROOT, "docs")   # GitHub Pages source (the phone dashboard)
+
+# S-tier smart-money experiment (listener-local; gitignored so it never conflicts with
+# the state the cloud commits). smart_wallets.json IS committed — it's configuration.
+SMART_WALLETS_PATH = os.path.join(ROOT, "smart_wallets.json")
+LEDGER_S_PATH = os.path.join(DATA_DIR, "ledger_s.csv")
+S_UPDATE_INTERVAL_MIN = 30   # listener maintenance thread: S-ledger forward-fill cadence
 for _d in (DATA_DIR, CACHE_DIR):
     os.makedirs(_d, exist_ok=True)
 

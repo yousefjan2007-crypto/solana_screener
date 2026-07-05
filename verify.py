@@ -10,7 +10,10 @@ These are the guarantees the whole tool's trustworthiness rests on:
 from __future__ import annotations
 
 import inspect
+import os
+import tempfile
 
+import ledger
 import screen
 from screen import hard_gates, high_conviction, soft_score
 from sources.rugcheck import safety_features
@@ -111,6 +114,39 @@ def main() -> None:
     cub_hc, cub_misses = high_conviction(cub_m, cub_s, cub_score)
     check(f"Cubrate replay (score {cub_score:.0f}) is NOT A-tier", cub_hc is False)
     check("Cubrate replay trips >=2 independent wash-trade gates", len(cub_misses) >= 2)
+
+    # 10. Exit discipline: TP and stop signals fire EXACTLY ONCE per level, and never
+    # for the silent B control tier. Uses an injected snapshot + a temp ledger file.
+    tmp = tempfile.mktemp(suffix="_verify_ledger.csv")
+    try:
+        ledger.record_alerts(
+            [{"mint": "MA", "symbol": "TA", "tier": "A", "price": 1.0,
+              "mcap": 1, "liq": 1, "score": 50, "gates": {}},
+             {"mint": "MB", "symbol": "TB", "tier": "B", "price": 1.0,
+              "mcap": 1, "liq": 1, "score": 50, "gates": {}}],
+            alert_ts=0.0, path=tmp)
+        _, ev = ledger.update_forward(10.0, lambda m: {"price_usd": 2.5, "mcap": 1},
+                                      path=tmp)
+        check("2.5x fires ONE tp event, tier A only",
+              len(ev) == 1 and ev[0]["kind"] == "tp" and ev[0]["symbol"] == "TA"
+              and ev[0]["levels"][-1][0] == 2.0)
+        _, ev2 = ledger.update_forward(20.0, lambda m: {"price_usd": 2.6, "mcap": 1},
+                                       path=tmp)
+        check("tp does NOT re-fire on the same level", ev2 == [])
+        _, ev3 = ledger.update_forward(30.0, lambda m: {"price_usd": 6.0, "mcap": 1},
+                                       path=tmp)
+        check("next ladder level (5x) fires once",
+              len(ev3) == 1 and ev3[0]["levels"] == [(5.0, 0.25)])
+        _, ev4 = ledger.update_forward(40.0, lambda m: {"price_usd": 0.4, "mcap": 1},
+                                       path=tmp)
+        check("stop breach fires ONE stop event, tier A only",
+              len(ev4) == 1 and ev4[0]["kind"] == "stop" and ev4[0]["symbol"] == "TA")
+        _, ev5 = ledger.update_forward(50.0, lambda m: {"price_usd": 0.3, "mcap": 1},
+                                       path=tmp)
+        check("stop does NOT re-fire", ev5 == [])
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
     print("ALL INVARIANTS PASSED")
 

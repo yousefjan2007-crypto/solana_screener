@@ -37,8 +37,10 @@ import websocket  # websocket-client
 
 import config
 import alerts
+import ledger
 import run as pipeline
 from sources import dexscreener as dex
+from sources import rugcheck as rug
 
 WS_URL = "wss://pumpportal.fun/api/data"
 LISTENER_STATE = os.path.join(config.DATA_DIR, "listener_state.json")
@@ -49,6 +51,14 @@ ENRICH_RETRY_DELAYS = (10, 30, 60, 120)
 
 SEND = "--send" in sys.argv
 TEST = "--test" in sys.argv
+
+
+def _load_smart_wallets() -> dict:
+    """{address: label} — the S-tier copy-watch list (smart_wallets.json)."""
+    try:
+        return json.load(open(config.SMART_WALLETS_PATH)).get("wallets", {}) or {}
+    except Exception:
+        return {}
 
 
 def _log(msg: str) -> None:
@@ -131,6 +141,64 @@ def evaluate_migration(mint: str, symbol: str) -> None:
     _mark_alerted(mint, now_s)
 
 
+def evaluate_smart_buy(mint: str, wallet: str, label: str) -> None:
+    """A watched wallet BOUGHT a coin. Screen it through the hard rug+insider gates
+    (NOT the A-tier maturity band — following a proven wallet early is the experiment);
+    alert + record to the local S ledger if it survives the gates."""
+    m = None
+    for delay in (2, 20, 60):
+        time.sleep(delay)
+        m = dex.forward_snapshot(mint, now_s=time.time())
+        if m and m.get("liq_usd", 0) > 0:
+            break
+    if not m:
+        _log(f"  S: {label} bought {mint[:8]}… — no pair data, skipped")
+        return
+    row = pipeline.screen_token(mint, m)
+    now_s = time.time()
+    if row is None:
+        _log(f"  S: {label} bought {m.get('symbol', '?')} — REJECTED by hard gates")
+        return
+    row["tier"] = "S"
+    _log(f"  S: {label} bought {row['symbol']} — passed gates, score {row['score']:.0f}")
+    if not _cooldown_ok("S:" + mint, now_s):
+        return
+    title = (f"solana_screener S-TIER EXPERIMENT: watched wallet "
+             f"“{label}” bought {row['symbol']}")
+    _, body = alerts.format_alert([row])
+    body = ("UNPROVEN signal under live test — the S scorecard (python3 ledger.py) "
+            "decides if it survives human latency.\n\n" + body)
+    alerts.send_all(title, body, dry_run=not SEND)
+    _mark_alerted("S:" + mint, now_s)
+    ledger.record_alerts(
+        [{"mint": mint, "symbol": row["symbol"], "tier": "S", "price": row["price_usd"],
+          "mcap": row["mcap"], "liq": row["liq_usd"], "score": row["score"],
+          "gates": row["gates"], "rugcheck_score": row.get("rugcheck_score")}],
+        alert_ts=now_s, path=config.LEDGER_S_PATH)
+
+
+def s_ledger_maintenance() -> None:
+    """Daemon thread: every S_UPDATE_INTERVAL_MIN, fill forward returns on the local S
+    ledger and push its TP/stop exit signals (the cloud can't — the file is local)."""
+    while True:
+        time.sleep(config.S_UPDATE_INTERVAL_MIN * 60)
+        try:
+            if not os.path.exists(config.LEDGER_S_PATH):
+                continue
+            now_s = time.time()
+            filled, exits = ledger.update_forward(
+                now_s,
+                snapshot_fn=lambda mint: dex.forward_snapshot(mint, now_s=now_s),
+                report_fn=rug.report, path=config.LEDGER_S_PATH)
+            if filled or exits:
+                _log(f"S ledger: {filled} cell(s) filled, {len(exits)} exit signal(s)")
+            if exits:
+                t, b = alerts.format_exit_alert(exits)
+                alerts.send_all("[S experiment] " + t, b, dry_run=not SEND)
+        except Exception as e:
+            _log(f"S ledger maintenance error: {e}")
+
+
 def on_message(ws, raw: str) -> None:
     try:
         msg = json.loads(raw)
@@ -141,7 +209,14 @@ def on_message(ws, raw: str) -> None:
     now_s = time.time()
     if not mint:
         return  # subscription acks etc.
-    if tx == "create":
+    if tx == "buy" and msg.get("traderPublicKey") in SMART_WALLETS:
+        wallet = msg["traderPublicKey"]
+        label = SMART_WALLETS.get(wallet) or wallet[:8]
+        _log(f"SMART BUY {label} → {mint}" + (" (test: not evaluated)" if TEST else ""))
+        if not TEST:
+            threading.Thread(target=evaluate_smart_buy, args=(mint, wallet, label),
+                             daemon=True).start()
+    elif tx == "create":
         _append_jsonl(_launch_log_path(now_s), {
             "ts": now_s, "mint": mint, "symbol": msg.get("symbol", "?"),
             "name": msg.get("name", ""), "dev": msg.get("traderPublicKey", ""),
@@ -167,14 +242,24 @@ def on_error(ws, err) -> None:
 
 
 def on_open(ws) -> None:
+    global SMART_WALLETS
+    SMART_WALLETS = _load_smart_wallets()   # re-read on every (re)connect
     ws.send(json.dumps({"method": "subscribeNewToken"}))
     ws.send(json.dumps({"method": "subscribeMigration"}))
-    _log(f"connected — subscribed to creations + migrations "
+    if SMART_WALLETS:
+        ws.send(json.dumps({"method": "subscribeAccountTrade",
+                            "keys": list(SMART_WALLETS)}))
+    _log(f"connected — creations + migrations + {len(SMART_WALLETS)} smart wallet(s) "
          f"({'TEST' if TEST else 'SEND' if SEND else 'DRY'} mode)")
+
+
+SMART_WALLETS: dict = {}
 
 
 def main() -> None:
     _prune_launch_logs(time.time())
+    if not TEST:
+        threading.Thread(target=s_ledger_maintenance, daemon=True).start()
     if TEST:
         ws = websocket.WebSocketApp(WS_URL, on_open=on_open, on_message=on_message,
                                     on_error=on_error)

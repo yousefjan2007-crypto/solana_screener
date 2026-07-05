@@ -79,6 +79,20 @@ If A doesn't beat B, the band is not adding signal; loosen or rethink it.
 presence predicts dumps, not pumps; ~84% of graduated pump.fun tokens were high-risk and
 60% collapsed within 20 minutes of migrating. No screen finds "the next 100x" in advance.
 
+## Exit alerts + the S-tier experiment (v3)
+
+**Exit alerts.** Every scan now checks OPEN alerted positions against the plan printed in
+their entry alert: crossing a TP-ladder multiple (2x/5x/10x) or breaching the -50% hard
+stop pushes an EXITS alert — each level fires exactly once. Entries are probabilistic;
+exits are mechanical. This is where returns get realized instead of round-tripping.
+
+**S-tier (smart-money copy-watch, EXPERIMENT).** Add wallets to `smart_wallets.json`;
+the listener subscribes to their trades and alerts when one buys a coin that passes the
+hard rug+insider gates (maturity band deliberately not required — early entry is the
+point of the experiment). Tracked in a local-only `data/ledger_s.csv` scorecard.
+Research basis: profitable wallets returned ~14%, bot-speed copiers ~3%; at human alert
+speed it is UNPROVEN. If the S scorecard doesn't beat A/B, kill the experiment.
+
 ## Tuning
 
 Everything is in `config.py`. Loosen/tighten a single gate (e.g. `LIQ_FLOOR_USD`,

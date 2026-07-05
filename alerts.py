@@ -99,6 +99,30 @@ def format_alert(survivors: list[dict]) -> tuple[str, str]:
     return title, body
 
 
+def format_exit_alert(events: list[dict]) -> tuple[str, str]:
+    """events from ledger.update_forward — TP-ladder crossings and stop breaches on
+    OPEN alerted positions. This is the discipline half of the system: entries are
+    probabilistic, exits are mechanical."""
+    title = f"solana_screener EXITS: {len(events)} signal(s) on open alerts"
+    lines = []
+    for e in events:
+        if e["kind"] == "stop":
+            dead = e.get("price", 0) <= 0
+            lines.append(
+                f"🛑 {e['symbol']}  {e['ret']*100:+.0f}%"
+                + ("  (no price — token looks dead)" if dead
+                   else f"  price ${e['price']:.6g}")
+                + f"\n   Hard stop was -{config.HARD_STOP_PCT*100:.0f}%. "
+                  f"Plan: exit the remainder. No averaging down.")
+        else:
+            steps = ", ".join(f"at {m:g}x sell {int(f*100)}%" for m, f in e["levels"])
+            lines.append(
+                f"🎯 {e['symbol']}  {e['mult']:.1f}x  price ${e['price']:.6g}\n"
+                f"   Plan: {steps}. Winners round-trip to zero here — take it.")
+    body = "\n\n".join(lines) + "\n\n" + config.FOOTER
+    return title, body
+
+
 def send_all(title: str, body: str, dry_run: bool = True) -> None:
     """Send to every configured channel. dry_run just prints to the console."""
     print(f"\n=== ALERT {'(DRY RUN — not sent)' if dry_run else '(SENDING)'} ===")

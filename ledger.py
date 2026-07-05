@@ -27,23 +27,25 @@ BASE_COLS = ["mint", "symbol", "tier", "alert_ts", "entry_price", "entry_mcap",
 FWD_COLS: list[str] = []
 for _h in HORIZ:
     FWD_COLS += [f"price_{_h}", f"mcap_{_h}", f"ret_{_h}"]
-TAIL_COLS = ["max_ret_seen", "min_ret_seen", "rugged_after", "status"]
+TAIL_COLS = ["max_ret_seen", "min_ret_seen", "rugged_after", "status",
+             "tp_alerted", "stop_alerted"]
 COLUMNS = BASE_COLS + FWD_COLS + TAIL_COLS
 
 _EMPTY = ("", "nan", "None", "NaN")
 
 
-def load() -> pd.DataFrame:
-    if os.path.exists(config.LEDGER_PATH):
+def load(path: str | None = None) -> pd.DataFrame:
+    path = path or config.LEDGER_PATH
+    if os.path.exists(path):
         # astype(object): pandas >=3 makes dtype=str a STRICT string dtype that raises on
         # the float/bool cell writes update_forward() does; object accepts mixed values on
         # every pandas version (the cloud runner installs latest, the Mac runs 2.x).
-        return pd.read_csv(config.LEDGER_PATH, dtype=str).astype(object)
+        return pd.read_csv(path, dtype=str).astype(object)
     return pd.DataFrame(columns=COLUMNS)
 
 
-def save(df: pd.DataFrame) -> None:
-    df.reindex(columns=COLUMNS).to_csv(config.LEDGER_PATH, index=False)
+def save(df: pd.DataFrame, path: str | None = None) -> None:
+    df.reindex(columns=COLUMNS).to_csv(path or config.LEDGER_PATH, index=False)
 
 
 def _num(v, default=0.0) -> float:
@@ -55,10 +57,10 @@ def _num(v, default=0.0) -> float:
         return default
 
 
-def record_alerts(rows: list[dict], alert_ts: float) -> int:
+def record_alerts(rows: list[dict], alert_ts: float, path: str | None = None) -> int:
     """rows: [{mint, symbol, price, mcap, liq, score, gates(dict), rugcheck_score}].
     One entry per token — mints already in the ledger are skipped."""
-    led = load()
+    led = load(path)
     existing = set(led["mint"].astype(str)) if len(led) else set()
     new = []
     for r in rows:
@@ -75,26 +77,33 @@ def record_alerts(rows: list[dict], alert_ts: float) -> int:
             "rugcheck_score": r.get("rugcheck_score", ""),
             "max_ret_seen": 0.0, "min_ret_seen": 0.0,
             "rugged_after": False, "status": "open",
+            "tp_alerted": 0.0, "stop_alerted": False,
         })
         new.append(rec)
     if new:
         add = pd.DataFrame(new)
         led = add if len(led) == 0 else pd.concat([led, add], ignore_index=True)
-        save(led)
+        save(led, path)
     return len(new)
 
 
-def update_forward(now_s: float, snapshot_fn, report_fn=None) -> int:
+def update_forward(now_s: float, snapshot_fn, report_fn=None,
+                   path: str | None = None) -> tuple[int, list[dict]]:
     """For each open row, fill any elapsed-but-empty horizon using
     snapshot_fn(mint) -> market dict (with 'price_usd'/'mcap'). snapshot_fn and report_fn
-    are injected so this stays unit-testable. Returns the number of horizon cells filled.
+    are injected so this stays unit-testable. Returns (horizon cells filled, exit events).
+
+    Exit events implement the alert's own discipline plan: fire ONCE when an ALERTED row
+    (tier A/S — never the silent B control) crosses a TP-ladder multiple or breaches the
+    hard stop. This is where returns get REALIZED instead of round-tripping to zero.
 
     A token that no longer returns a price is treated as dead → that horizon's return is
     -100% (honest: it captures the frequent "went to zero" outcome)."""
-    led = load()
+    led = load(path)
     if len(led) == 0:
-        return 0
+        return 0, []
     filled = 0
+    events: list[dict] = []
     last_h = list(HORIZ)[-1]
     for i in led.index:
         if str(led.at[i, "status"]) == "resolved":
@@ -115,6 +124,24 @@ def update_forward(now_s: float, snapshot_fn, report_fn=None) -> int:
         led.at[i, "max_ret_seen"] = max(cur_ret, _num(led.at[i, "max_ret_seen"]))
         led.at[i, "min_ret_seen"] = min(cur_ret, _num(led.at[i, "min_ret_seen"]))
 
+        # exit signals — alerted tiers only, each level fires exactly once
+        sym = str(led.at[i, "symbol"])
+        if str(led.at[i, "tier"]) != "B":
+            if (str(led.at[i, "stop_alerted"]).lower() != "true"
+                    and cur_ret <= -config.HARD_STOP_PCT):
+                led.at[i, "stop_alerted"] = True
+                events.append({"kind": "stop", "symbol": sym, "mint": mint,
+                               "ret": cur_ret, "price": cur_price})
+            cur_mult = (cur_price / entry) if cur_price > 0 else 0.0
+            tp_done = _num(led.at[i, "tp_alerted"])
+            crossed = [(m, f) for m, f in config.TP_LADDER
+                       if cur_mult >= m and m > tp_done]
+            if crossed:
+                led.at[i, "tp_alerted"] = max(m for m, _f2 in crossed)
+                events.append({"kind": "tp", "symbol": sym, "mint": mint,
+                               "levels": crossed, "price": cur_price,
+                               "mult": cur_mult})
+
         for hname, hsec in HORIZ.items():
             col = f"ret_{hname}"
             if str(led.at[i, col]) not in _EMPTY:
@@ -134,8 +161,8 @@ def update_forward(now_s: float, snapshot_fn, report_fn=None) -> int:
         if str(led.at[i, f"ret_{last_h}"]) not in _EMPTY:
             led.at[i, "status"] = "resolved"
 
-    save(led)
-    return filled
+    save(led, path)
+    return filled, events
 
 
 def _fmt_ret(v) -> str:
@@ -145,10 +172,13 @@ def _fmt_ret(v) -> str:
     return f"{float(v) * 100:+5.0f}%"
 
 
-def summary() -> None:
-    led = load()
+TIER_LABEL = {"A": "alerted", "B": "silent control", "S": "smart-money experiment"}
+
+
+def summary(path: str | None = None) -> None:
+    led = load(path)
     n = len(led)
-    print(f"ledger: {n} alerted token(s)")
+    print(f"ledger{' (S experiment, local-only)' if path else ''}: {n} token(s)")
     if n == 0:
         print("  (nothing logged yet — run `python3 run.py --commit` to start tracking)")
         return
@@ -156,7 +186,8 @@ def summary() -> None:
     # ── per-token results (winners first) ────────────────────────────────────────
     led = led.copy()
     led["_mx"] = pd.to_numeric(led["max_ret_seen"], errors="coerce").fillna(-9.0)
-    led["_tier"] = led["tier"].astype(str).where(led["tier"].astype(str).isin(["A", "B"]), "A")
+    led["_tier"] = led["tier"].astype(str).where(
+        led["tier"].astype(str).isin(["A", "B", "S"]), "A")
     led = led.sort_values("_mx", ascending=False)
     print(f"  {'':2s}{'symbol':12s} {'1h':>6s} {'6h':>6s} {'24h':>6s} {'7d':>6s}  {'best':>6s}  status")
     for _, r in led.iterrows():
@@ -168,12 +199,11 @@ def summary() -> None:
     print()
 
     # ── aggregate scorecard, split by tier (A = alerted, B = silent control) ─────
-    for tier in ("A", "B"):
+    for tier in ("A", "B", "S"):
         sub = led[led["_tier"] == tier]
         if len(sub) == 0:
             continue
-        print(f"  tier {tier} ({'alerted' if tier == 'A' else 'silent control'}), "
-              f"n={len(sub)}:")
+        print(f"  tier {tier} ({TIER_LABEL[tier]}), n={len(sub)}:")
         for h in HORIZ:
             r = pd.to_numeric(sub[f"ret_{h}"], errors="coerce").dropna()
             if len(r):
@@ -190,3 +220,6 @@ def summary() -> None:
 
 if __name__ == "__main__":
     summary()
+    if os.path.exists(config.LEDGER_S_PATH):
+        print()
+        summary(config.LEDGER_S_PATH)

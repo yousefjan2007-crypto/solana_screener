@@ -117,11 +117,14 @@ def run(dry_run: bool = True, send: bool = False) -> list[dict]:
              for s in survivors],
             alert_ts=now_s,
         )
-        filled = ledger.update_forward(
+        filled, exits = ledger.update_forward(
             now_s,
             snapshot_fn=lambda mint: dex.forward_snapshot(mint, now_s=now_s),
             report_fn=rug.report,
         )
+        if exits:
+            ex_title, ex_body = alerts.format_exit_alert(exits)
+            alerts.send_all(ex_title, ex_body, dry_run=not send)
         for s in fresh:
             state[s["mint"]] = now_s
         json.dump(state, open(config.STATE_PATH, "w"), indent=2)

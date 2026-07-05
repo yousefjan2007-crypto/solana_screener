@@ -42,6 +42,19 @@ def hard_gates(market: dict, safety: dict) -> tuple[bool, dict]:
     r["no_danger_risk"] = len(danger_hits) == 0
     r["danger_hits"] = danger_hits
 
+    # GMGN behavioral tags (second opinion) — enforced only when the data exists, so a
+    # missing key or vendor outage can never dark the screener.
+    g = safety.get("gmgn_ok", False)
+    r["gmgn_available"] = bool(g)
+    r["gmgn_bundlers_ok"] = (not g or safety.get("gmgn_bundler_ratio", 0.0)
+                             <= config.GMGN_BUNDLER_RATIO_MAX)
+    r["gmgn_rats_ok"] = (not g or safety.get("gmgn_rat_wallets", 0)
+                         <= config.GMGN_RAT_WALLETS_MAX)
+    r["gmgn_snipers_ok"] = (not g or safety.get("gmgn_sniper_hold_pct", 0.0)
+                            <= config.GMGN_SNIPER_HOLD_MAX_PCT)
+    r["gmgn_insiders_ok"] = (not g or safety.get("gmgn_insider_hold_pct", 0.0)
+                             <= config.GMGN_INSIDER_HOLD_MAX_PCT)
+
     passed = (
         r["has_safety"]
         and (r["mint_revoked"] or not config.REQUIRE_MINT_REVOKED)
@@ -52,6 +65,8 @@ def hard_gates(market: dict, safety: dict) -> tuple[bool, dict]:
         and r["top10_ok"] and r["insider_ok"] and r["dev_ok"] and r["risk_ok"]
         and r["insider_net_ok"] and r["graph_insiders_ok"] and r["creator_ok"]
         and r["no_danger_risk"]
+        and r["gmgn_bundlers_ok"] and r["gmgn_rats_ok"]
+        and r["gmgn_snipers_ok"] and r["gmgn_insiders_ok"]
     )
     return passed, r
 
@@ -95,6 +110,11 @@ def high_conviction(market: dict, safety: dict, score: float) -> tuple[bool, lis
     if holders > 0 and tx_h1 / holders > config.HC_MAX_TX_PER_HOLDER_H1:
         misses.append(f"{tx_h1 / holders:.1f} tx/holder/hr looks like bot churn "
                       f"(max {config.HC_MAX_TX_PER_HOLDER_H1:.0f})")
+    if (safety.get("gmgn_ok")
+            and safety.get("gmgn_bundler_ratio", 0.0) > config.HC_GMGN_BUNDLER_RATIO_MAX):
+        misses.append(f"GMGN bundler/holder ratio "
+                      f"{safety.get('gmgn_bundler_ratio', 0.0):.2f} "
+                      f"(organic ~0.01, max {config.HC_GMGN_BUNDLER_RATIO_MAX:.2f})")
     return len(misses) == 0, misses
 
 

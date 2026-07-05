@@ -76,6 +76,14 @@ CREATOR_MAX_PRIOR_TOKENS = 3     # serial deployers = scam factories (Solidus: 1
                                  # creators produce most rugs; one creator seen with 50)
 CREATOR_DEAD_MCAP_USD = 30_000.0 # a prior launch below this mcap counts as dead
 CREATOR_MAX_DEAD_FRAC = 0.5      # reject if > half of prior launches are dead (min 2 prior)
+# GMGN behavioral-tag gates (second opinion; applied ONLY when GMGN data is available —
+# no key / failed call degrades gracefully). Raw bundler COUNT scales with volume (WIF
+# has 1,000), so the gate is the bundler-to-holder RATIO. Measured calibration
+# 2026-07-05: WIF 0.002, trumplet 0.01 (organic) vs Cubrate rug 1.42, LISA 0.71.
+GMGN_BUNDLER_RATIO_MAX = 0.5     # hard gate: more bundlers than half the holder count
+GMGN_RAT_WALLETS_MAX = 10        # "rat trader" = GMGN's insider/sneak-trading tag
+GMGN_SNIPER_HOLD_MAX_PCT = 10.0  # supply still held by launch snipers
+GMGN_INSIDER_HOLD_MAX_PCT = 15.0 # suspected-insider hold rate, when reported
 
 # ── SOFT SCORE (rank survivors 0-100) ─────────────────────────────────────────────
 HOLDERS_SAFE = 1000          # DEXTools: >1000 safe
@@ -119,6 +127,7 @@ HC_MIN_AGE_MINUTES = 90          # 60% of rugs collapse <20 min post-graduation;
                                  # coin is still a real coin at 90 min — a scam isn't
 HC_MAX_HOLDERS_PER_MIN = 8.0     # organic-growth cap (Cubrate: 67/min = wallet farm)
 HC_MAX_TX_PER_HOLDER_H1 = 3.0    # bot-churn cap (Cubrate: 4.2 buys+sells/holder/hour)
+HC_GMGN_BUNDLER_RATIO_MAX = 0.10 # A-tier band: organic coins measure ~0.00-0.01
 
 # ── alerting ──────────────────────────────────────────────────────────────────────
 ALERT_TOP_N = 5
@@ -139,15 +148,19 @@ def load_credentials() -> dict:
       3. vrp_backtest/monitor_config.json (the shared Mac secrets).
     Returns {ntfy_topic, telegram:{bot_token,chat_id}, anthropic_api_key}."""
     creds = {"ntfy_topic": os.environ.get("NTFY_TOPIC"),
-             "telegram": {}, "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY")}
+             "telegram": {}, "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY"),
+             "gmgn_api_key": os.environ.get("GMGN_API_KEY")}
     bt, cid = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     if bt and cid:
         creds["telegram"] = {"bot_token": bt, "chat_id": cid}
 
     local = os.path.join(ROOT, "config.local.json")
-    if os.path.exists(local) and not creds["telegram"]:
+    if os.path.exists(local):
         try:
-            creds.update(json.load(open(local)))
+            loc = json.load(open(local))
+            for k, v in loc.items():
+                if v and not creds.get(k):
+                    creds[k] = v
         except Exception:
             pass
 

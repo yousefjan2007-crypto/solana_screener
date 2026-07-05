@@ -115,7 +115,21 @@ def main() -> None:
     check(f"Cubrate replay (score {cub_score:.0f}) is NOT A-tier", cub_hc is False)
     check("Cubrate replay trips >=2 independent wash-trade gates", len(cub_misses) >= 2)
 
-    # 10. Exit discipline: TP and stop signals fire EXACTLY ONCE per level, and never
+    # 10. GMGN behavioral gates: enforced when data present (the Cubrate wallet-farm
+    # fingerprint — 88 bundler wallets — must reject), pass-through when absent.
+    farm = dict(clean, gmgn_ok=True, gmgn_bundler_ratio=1.42, gmgn_bundler_wallets=88,
+                gmgn_rat_wallets=3, gmgn_sniper_hold_pct=0.1, gmgn_insider_hold_pct=0.0)
+    okf, rf = hard_gates(m, farm)
+    check("GMGN wallet-farm fingerprint (bundler ratio 1.42) is rejected",
+          okf is False and rf["gmgn_bundlers_ok"] is False)
+    hc_g, _ = high_conviction(mature_m, dict(clean, gmgn_ok=True,
+                                             gmgn_bundler_ratio=0.2), score=90.0)
+    check("A-tier rejects elevated GMGN bundler ratio (0.2)", hc_g is False)
+    okn, rn = hard_gates(m, clean)  # no gmgn keys at all
+    check("missing GMGN data passes through (graceful degradation)",
+          rn["gmgn_available"] is False and rn["gmgn_bundlers_ok"] is True and okn)
+
+    # 11. Exit discipline: TP and stop signals fire EXACTLY ONCE per level, and never
     # for the silent B control tier. Uses an injected snapshot + a temp ledger file.
     tmp = tempfile.mktemp(suffix="_verify_ledger.csv")
     try:

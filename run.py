@@ -26,6 +26,7 @@ import alerts
 import ledger
 from screen import hard_gates, high_conviction, soft_score
 from sources import dexscreener as dex
+from sources import gmgn
 from sources import rugcheck as rug
 
 
@@ -46,6 +47,13 @@ def screen_token(mint: str, m: dict) -> dict | None:
     passed, gates = hard_gates(m, safety)
     if not passed:
         return None
+    # GMGN second opinion — spent only on tokens that already passed the free gates
+    # (1 req/s budget). Behavioral wallet tags catch the wallet-farm shape RugCheck's
+    # funding-graph clustering is blind to (the Cubrate failure mode).
+    safety.update(gmgn.token_features(mint))
+    passed, gates = hard_gates(m, safety)
+    if not passed:
+        return None
     score, _ = soft_score(m, safety)
     is_a, hc_misses = high_conviction(m, safety, score)
     row = dict(m)
@@ -58,6 +66,10 @@ def screen_token(mint: str, m: dict) -> dict | None:
         "insider_networks_pct": round(safety.get("insider_networks_pct", 0.0), 1),
         "graph_insiders": safety.get("graph_insiders", 0),
         "creator_prior_tokens": safety.get("creator_prior_tokens", 0),
+        "gmgn_ok": safety.get("gmgn_ok", False),
+        "gmgn_bundler_wallets": safety.get("gmgn_bundler_wallets", 0),
+        "gmgn_sniper_wallets": safety.get("gmgn_sniper_wallets", 0),
+        "gmgn_smart_wallets": safety.get("gmgn_smart_wallets", 0),
         "rugcheck_score": safety.get("risk_score"),
         "gates": gates,
     })

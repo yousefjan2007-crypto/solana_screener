@@ -26,6 +26,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          GMGN_API_KEY: ${{ secrets.GMGN_API_KEY }}
         run: python run.py --send
       - name: Render dashboard (GitHub Pages)
         run: python dashboard.py

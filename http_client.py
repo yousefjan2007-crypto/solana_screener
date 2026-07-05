@@ -25,6 +25,7 @@ _last_call: dict[str, float] = {}
 _HOST_HZ = {
     "api.dexscreener.com": config.DEXSCREENER_RATE_HZ,
     "api.rugcheck.xyz": config.RUGCHECK_RATE_HZ,
+    "openapi.gmgn.ai": 1.0,   # documented default limit: 1 req/s
 }
 
 

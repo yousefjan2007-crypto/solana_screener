@@ -91,7 +91,11 @@ def format_alert(survivors: list[dict]) -> tuple[str, str]:
             f"   insider-nets {s.get('insider_networks_pct', 0):.0f}%  "
             f"graph-insiders {s.get('graph_insiders', 0)}  "
             f"creator prior launches {s.get('creator_prior_tokens', 0)}\n"
-            f"   PLAN: buy ~${size:.0f}  hard-stop ${stop:.6g} "
+            + (f"   GMGN: bundlers {s.get('gmgn_bundler_wallets', 0)}  "
+               f"snipers {s.get('gmgn_sniper_wallets', 0)}  "
+               f"smart-money holders {s.get('gmgn_smart_wallets', 0)}\n"
+               if s.get("gmgn_ok") else "   GMGN: unavailable (gates passed through)\n")
+            + f"   PLAN: buy ~${size:.0f}  hard-stop ${stop:.6g} "
             f"(-{config.HARD_STOP_PCT*100:.0f}%)  TP {tps}\n"
             f"   {s.get('url', '')}"
         )

@@ -88,17 +88,29 @@ def main() -> None:
 
     # 8. A-tier can NEVER be laxer than the hard gates: any insider-network presence,
     # a big top10, or thin holders each individually disqualify A-tier.
-    hc_ok, _ = high_conviction(
-        {"liq_usd": 99_999, "vol_h24": 99_999, "mcap": 100_000}, clean, score=90.0)
-    check("pristine token IS A-tier", hc_ok is True)
+    mature_m = {"liq_usd": 99_999, "vol_h24": 99_999, "mcap": 100_000,
+                "pair_age_min": 240, "buys_h1": 320, "sells_h1": 180}
+    hc_ok, _ = high_conviction(mature_m, clean, score=90.0)
+    check("pristine mature token IS A-tier", hc_ok is True)
     for bad in (dict(clean, insider_networks_pct=1.0),
                 dict(clean, graph_insiders=6),
                 dict(clean, creator_prior_tokens=2),
                 dict(clean, top10_pct=25),
                 dict(clean, total_holders=500)):
-        hc_bad, _ = high_conviction(
-            {"liq_usd": 99_999, "vol_h24": 99_999, "mcap": 100_000}, bad, score=90.0)
+        hc_bad, _ = high_conviction(mature_m, bad, score=90.0)
         check("A-tier rejects degraded variant", hc_bad is False)
+
+    # 9. $CUBRATE REGRESSION (2026-07-05): the exact at-alert stats of a wash-traded rug
+    # that scored A-tier 80.5 and went -99% within the hour. Age 20 min, 67 holders/min,
+    # 4.2 tx/holder/hr — every "quality" metric was bot-manufactured. Must NEVER be
+    # A-tier again, no matter how good the score looks.
+    cub_m = {"liq_usd": 30_031.46, "vol_h24": 397_126.31, "mcap": 151_307.0,
+             "buys_h1": 3662, "sells_h1": 1987, "pair_age_min": 19.94}
+    cub_s = dict(clean, top10_pct=4.4, total_holders=1344)
+    cub_score, _ = soft_score(cub_m, cub_s)
+    cub_hc, cub_misses = high_conviction(cub_m, cub_s, cub_score)
+    check(f"Cubrate replay (score {cub_score:.0f}) is NOT A-tier", cub_hc is False)
+    check("Cubrate replay trips >=2 independent wash-trade gates", len(cub_misses) >= 2)
 
     print("ALL INVARIANTS PASSED")
 

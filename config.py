@@ -107,6 +107,12 @@ HC_CREATOR_MAX_PRIOR = 1         # first or second launch only
 HC_TOP10_MAX_PCT = 20.0          # DEXTools "safe" line, tighter than the 40% hard gate
 HC_MIN_HOLDERS = 1000            # DEXTools "safe" line
 HC_MIN_LIQ_USD = 25_000.0        # deeper exit pool than the $10k hard floor
+# Post-mortem gates from the $Cubrate rug (2026-07-05: A-tier at age 20 min with 1,344
+# "holders" and $397k "volume" — all bot-manufactured; -99% within the hour):
+HC_MIN_AGE_MINUTES = 90          # 60% of rugs collapse <20 min post-graduation; a real
+                                 # coin is still a real coin at 90 min — a scam isn't
+HC_MAX_HOLDERS_PER_MIN = 8.0     # organic-growth cap (Cubrate: 67/min = wallet farm)
+HC_MAX_TX_PER_HOLDER_H1 = 3.0    # bot-churn cap (Cubrate: 4.2 buys+sells/holder/hour)
 
 # ── alerting ──────────────────────────────────────────────────────────────────────
 ALERT_TOP_N = 5

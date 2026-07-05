@@ -78,6 +78,23 @@ def high_conviction(market: dict, safety: dict, score: float) -> tuple[bool, lis
     if market.get("liq_usd", 0.0) < config.HC_MIN_LIQ_USD:
         misses.append(f"liq ${market.get('liq_usd', 0.0):,.0f} < "
                       f"${config.HC_MIN_LIQ_USD:,.0f}")
+
+    # Wash-trade / wallet-farm plausibility ($Cubrate post-mortem). Metrics a bot farm
+    # inflates look IMPOSSIBLY GOOD on a young coin; require organic-plausible rates.
+    age_min = market.get("pair_age_min", float("nan"))
+    if not (age_min >= config.HC_MIN_AGE_MINUTES):  # False for NaN too
+        misses.append(f"age {age_min:.0f}m < {config.HC_MIN_AGE_MINUTES}m "
+                      f"(the <90m window is where rugs live)")
+    holders = safety.get("total_holders", 0)
+    if age_min == age_min and age_min > 0:
+        hpm = holders / age_min
+        if hpm > config.HC_MAX_HOLDERS_PER_MIN:
+            misses.append(f"{hpm:.0f} holders/min looks like a wallet farm "
+                          f"(max {config.HC_MAX_HOLDERS_PER_MIN:.0f})")
+    tx_h1 = market.get("buys_h1", 0) + market.get("sells_h1", 0)
+    if holders > 0 and tx_h1 / holders > config.HC_MAX_TX_PER_HOLDER_H1:
+        misses.append(f"{tx_h1 / holders:.1f} tx/holder/hr looks like bot churn "
+                      f"(max {config.HC_MAX_TX_PER_HOLDER_H1:.0f})")
     return len(misses) == 0, misses
 
 

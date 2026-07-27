@@ -13,6 +13,7 @@ from __future__ import annotations
 import ssl
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -21,6 +22,19 @@ import certifi
 import config
 
 _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+
+
+def _send_with_retries(name: str, req: urllib.request.Request, attempts: int = 3) -> None:
+    """Alerts are rare and the scripts one-shot, so a transient network blip
+    (e.g. a DNS drop on wake-from-sleep) would otherwise lose the alert forever."""
+    for i in range(1, attempts + 1):
+        try:
+            urllib.request.urlopen(req, timeout=10, context=_SSL_CTX)
+            return
+        except Exception as e:
+            print(f"[{name} error] attempt {i}/{attempts}: {e}", file=sys.stderr)
+            if i < attempts:
+                time.sleep(2 * i)
 
 
 def macos_notify(title: str, body: str) -> None:
@@ -41,10 +55,7 @@ def ntfy_notify(topic: str, title: str, body: str) -> None:
     req.add_header("Title", title)
     req.add_header("Priority", "high")
     req.add_header("Tags", "chart_with_upwards_trend,rotating_light")
-    try:
-        urllib.request.urlopen(req, timeout=10, context=_SSL_CTX)
-    except Exception as e:
-        print(f"[ntfy error] {e}", file=sys.stderr)
+    _send_with_retries("ntfy", req)
 
 
 def telegram_notify(bot_token: str, chat_id: str, title: str, body: str) -> None:
@@ -58,11 +69,7 @@ def telegram_notify(bot_token: str, chat_id: str, title: str, body: str) -> None
     data = urllib.parse.urlencode({"chat_id": str(chat_id), "text": text,
                                    "parse_mode": "HTML"}).encode("utf-8")
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    try:
-        urllib.request.urlopen(urllib.request.Request(url, data=data),
-                               timeout=10, context=_SSL_CTX)
-    except Exception as e:
-        print(f"[telegram error] {e}", file=sys.stderr)
+    _send_with_retries("telegram", urllib.request.Request(url, data=data))
 
 
 def _plan(entry_price: float) -> tuple[float, float, str]:

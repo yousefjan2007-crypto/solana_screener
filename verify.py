@@ -284,6 +284,40 @@ def main() -> None:
         check("a mint alerted twice opens exactly once (scan and listener overlap)",
               a is not None and b is None)
 
+        # ── the ledger-driven feed ──────────────────────────────────────────────────
+        # run.py opens book positions but runs on the Actions runner, while the ticker is local,
+        # so the book is fed from the CLOUD-committed ledger instead. Three things must hold or
+        # the feed silently fabricates or loses data.
+        shutil.rmtree(tmpd, ignore_errors=True)
+        tmpd = tempfile.mkdtemp()
+        LB.BOOK_PATH = os.path.join(tmpd, "b.json")
+        LB.FILLS_PATH = os.path.join(tmpd, "f.csv")
+        LB.TICKS_PATH = os.path.join(tmpd, "t.jsonl")
+        LB.FEED_STATE_PATH = os.path.join(tmpd, "feed.json")
+        LB.MISSED_PATH = os.path.join(tmpd, "missed.jsonl")
+        T0 = 1_000_000.0
+        led = [{"mint": "OLD", "symbol": "O", "tier": "A", "alert_ts": str(T0 - 3600)},
+               {"mint": "NEW", "symbol": "N", "tier": "A", "alert_ts": str(T0 - 300)}]
+
+        def _q(i, o, a):
+            return {"outAmount": "1000000", "priceImpactPct": "0.01"}
+        s1 = LB.feed_from_ledger(T0 - 7200, quote_fn=_q, rows_fn=lambda: led, verbose=False)
+        check("the first feed run sets a watermark and opens NOTHING (no stale backlog)",
+              s1["opened"] == 0 and os.path.exists(LB.FEED_STATE_PATH))
+        s2 = LB.feed_from_ledger(T0, quote_fn=_q, rows_fn=lambda: led, verbose=False)
+        check("an alert past MAX_ENTRY_LAG_S is refused and logged with its lag",
+              s2["too_late"] == 1 and os.path.exists(LB.MISSED_PATH)
+              and json.loads(open(LB.MISSED_PATH).read().splitlines()[0])["entry_lag_s"] > 0)
+        bk = json.load(open(LB.BOOK_PATH))
+        check("a fresh alert opens once and records entry_lag_s",
+              s2["opened"] == 1 and "NEW" in bk and bk["NEW"]["entry_lag_s"] == 300.0)
+        s3 = LB.feed_from_ledger(T0, quote_fn=_q, rows_fn=lambda: led, verbose=False)
+        check("the watermark stops the same ledger rows re-opening on the next tick",
+              s3["opened"] == 0 and s3["too_late"] == 0)
+        check("a feed outage returns no rows rather than raising",
+              LB.feed_from_ledger(T0, quote_fn=_q, rows_fn=lambda: [],
+                                  verbose=False)["seen"] == 0)
+
         # the promotion gate must refuse to act on thin evidence
         from selfimprove import improve as IMP
         v = IMP.decide({"champion": "hold_to_end", "n_positions": 3, "n_days": 2,

@@ -191,6 +191,22 @@ PAPER_POSITIONS_S_PATH = os.path.join(DATA_DIR, "paper_positions_s.json")
 # reads it — which also requires this repo to actually pull. Until then, seed it by hand.
 LIVEBOOK_ENABLED = os.environ.get("SOLANA_LIVEBOOK", "").lower() in ("1", "true", "yes")
 
+# ── the ledger-driven feed (how the book gets alerts without run.py running locally) ──
+# The tick reads the CLOUD-committed ledger via `git fetch` + `git show origin/main:data/ledger.csv`
+# — incremental, needs no auth, and never touches the working tree (a data-collection job must not
+# be able to cause a merge conflict).
+LEDGER_POLL_S = 300.0             # how often to re-read the cloud ledger; the cron commits /15min
+#
+# ENTRY LAG IS THE HONEST PROBLEM WITH THIS FEED, so it is capped and recorded rather than assumed
+# away. The cloud scan runs every 15 min and only then commits, so a row reaches us 15-25 min after
+# its alert_ts. `~/entry_bot/CLAUDE.md` measures what delay does to a launch trade (entering at
+# t+60s scored -0.654 against -0.045 at t=0) — that is a first-block context and this is not one
+# (HC_MIN_AGE_MINUTES = 90 means A-tier tokens are already 90+ min old when alerted), but the
+# direction of the bias is not in doubt. Every position records entry_lag_s; anything past the cap
+# is refused and written to livebook_missed.jsonl WITH its lag, so the kept set's bias stays
+# checkable offline instead of being invisible.
+MAX_ENTRY_LAG_S = 30 * 60
+
 
 def load_credentials() -> dict:
     """Load push secrets without hardcoding them. Priority, so the SAME code runs both on

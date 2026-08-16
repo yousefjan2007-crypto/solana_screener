@@ -47,7 +47,7 @@ sys.path.append("/Users/yousefjan/entry_bot")        # for stats.py only
 import config          # noqa: E402
 import policies as POL  # noqa: E402
 
-PATHS = os.path.join(config.DATA_DIR, "paths.jsonl")
+PATHS = os.path.join(config.CACHE_DIR, "paths.jsonl")  # regenerable cache, not committed state
 TRIALS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trials.json")
 
 

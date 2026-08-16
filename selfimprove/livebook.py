@@ -66,6 +66,8 @@ from http_client import get_json   # noqa: E402
 BOOK_PATH = os.path.join(config.DATA_DIR, "livebook.json")
 FILLS_PATH = os.path.join(config.DATA_DIR, "livebook_fills.csv")
 TICKS_PATH = os.path.join(config.DATA_DIR, "livebook_ticks.jsonl")
+FEED_STATE_PATH = os.path.join(config.DATA_DIR, "livebook_feed.json")
+MISSED_PATH = os.path.join(config.DATA_DIR, "livebook_missed.jsonl")
 
 FILL_COLUMNS = ["ts", "mint", "symbol", "tier", "policy", "side", "frac_of_original",
                 "px", "usd_proceeds", "gap_s", "note"]
@@ -251,6 +253,93 @@ def _step_policy(pos: dict, name: str, st: dict, px: float, now_s: float,
     return fills
 
 
+def _cloud_ledger_rows() -> list:
+    """The cloud-committed ledger, read WITHOUT touching the working tree.
+
+    `run.py` is what normally opens positions, but it runs on the GitHub Actions runner while this
+    ticker is launchd-local — so left alone the book never receives an alert. The cloud is the
+    system of record, so the book reads it: `git fetch` (incremental, no auth needed even if the
+    repo were private) then `git show origin/main:data/ledger.csv`, which reads the blob straight
+    out of the object store. Deliberately NOT `git pull`: a data-collection job must never be able
+    to create a merge conflict or move the user's HEAD.
+    """
+    import csv as _csv
+    import io
+    import subprocess
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        subprocess.run(["git", "fetch", "-q", "origin"], cwd=root, timeout=60,
+                       capture_output=True)
+        out = subprocess.run(["git", "show", "origin/main:data/ledger.csv"], cwd=root,
+                             timeout=60, capture_output=True)
+        if out.returncode != 0:
+            return []
+        return list(_csv.DictReader(io.StringIO(out.stdout.decode("utf-8", "replace"))))
+    except Exception:
+        return []                      # a feed outage must never kill the tick loop
+
+
+def feed_from_ledger(now_s: float, *, quote_fn=quote, rows_fn=_cloud_ledger_rows,
+                     verbose: bool = True) -> dict:
+    """Open a book position for each new ledger alert. Returns counts.
+
+    A WATERMARK, not a scan of the whole file: the first run sets it to `now` so the 1,000-row
+    historical backlog is skipped rather than opened at prices that are weeks stale (and rather
+    than re-logging 1,000 'too old' misses on every tick, forever).
+    """
+    book = _load(BOOK_PATH, {})
+    state = _load(FEED_STATE_PATH, {})
+    mark = state.get("watermark_alert_ts")
+    rows = rows_fn()
+    stats = {"seen": len(rows), "opened": 0, "too_late": 0, "already": 0}
+    if not rows:
+        return stats
+    if mark is None:                   # first run — start from now, skip the backlog
+        state["watermark_alert_ts"] = now_s
+        _save_atomic(state, FEED_STATE_PATH)
+        if verbose:
+            print(f"feed: watermark initialised at {now_s:.0f}; "
+                  f"{len(rows)} historical rows skipped")
+        return stats
+    newest = mark
+    for r in rows:
+        try:
+            ats = float(r.get("alert_ts") or 0)
+        except (TypeError, ValueError):
+            continue
+        if ats <= mark or not r.get("mint"):
+            continue
+        newest = max(newest, ats)
+        if r["mint"] in book:
+            stats["already"] += 1
+            continue
+        lag = now_s - ats
+        if lag > config.MAX_ENTRY_LAG_S:
+            stats["too_late"] += 1
+            with open(MISSED_PATH, "a") as fh:
+                fh.write(json.dumps({"ts": now_s, "mint": r["mint"],
+                                     "symbol": r.get("symbol", ""), "tier": r.get("tier", ""),
+                                     "alert_ts": ats, "entry_lag_s": round(lag, 1),
+                                     "reason": "entry lag exceeds MAX_ENTRY_LAG_S"}) + "\n")
+            continue
+        pos = open_alert(r["mint"], r.get("symbol", "?"), r.get("tier", "B"), now_s,
+                         quote_fn=quote_fn)
+        if pos is not None:
+            pos_book = _load(BOOK_PATH, {})
+            if r["mint"] in pos_book:          # stamp the lag on the position we just opened
+                pos_book[r["mint"]]["entry_lag_s"] = round(lag, 1)
+                pos_book[r["mint"]]["alert_ts"] = ats
+                _save_atomic(pos_book, BOOK_PATH)
+            stats["opened"] += 1
+            book[r["mint"]] = pos
+    state["watermark_alert_ts"] = newest
+    _save_atomic(state, FEED_STATE_PATH)
+    if verbose and (stats["opened"] or stats["too_late"]):
+        print(f"feed: opened {stats['opened']}, {stats['too_late']} past the "
+              f"{config.MAX_ENTRY_LAG_S/60:.0f}min entry-lag cap")
+    return stats
+
+
 def tick(now_s: float, *, quote_fn=quote, verbose: bool = True) -> dict:
     """One cycle: price every open mint once, advance every policy, persist.
 
@@ -376,7 +465,8 @@ def main() -> None:
         scorecard()
         return
     if "--tick" in sys.argv:
-        tick(now_s)
+        feed_from_ledger(now_s)      # pull new alerts from the cloud ledger first...
+        tick(now_s)                  # ...then advance every open position
         return
     print(__doc__.strip().split("\n")[0])
     print("\nusage:")

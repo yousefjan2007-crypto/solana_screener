@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config          # noqa: E402
 import paths as P      # noqa: E402  (selfimprove/paths.py — flat import, see its docstring)
 
-OUT = os.path.join(config.DATA_DIR, "paths.jsonl")
+OUT = os.path.join(config.CACHE_DIR, "paths.jsonl")   # regenerable cache, not committed state
 
 
 def _done() -> set:

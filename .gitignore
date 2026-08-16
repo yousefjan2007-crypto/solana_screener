@@ -17,7 +17,5 @@ data/paper_positions_s.json
 data/livebook.json
 data/livebook_fills.csv
 data/livebook_ticks.jsonl
-# regenerable price-path cache (~29 MB); rebuild with `python3 selfimprove/backfill.py`
-data/paths.jsonl
-# quarantined bad data, kept locally as evidence (see CLAUDE.md, fill-ordering bug 2026-08-15)
-data/corrupt/
+data/livebook_feed.json
+data/livebook_missed.jsonl

@@ -138,10 +138,11 @@ rows may be scored), a 40-cluster floor, DSR on day means, and — most importan
 
 ## Measured state — read the sample sizes, they are the story
 
-- **The A arm has 13 rows, ever.** On the cloud ledger (903 rows → 2026-08-12) A medians are
-  −6.3% @1h, **+34.0% @6h**, −99.0% @24h vs B at −34.4 / −82.0 / −93.6. The **local**
-  `data/ledger.csv` (544 rows → 2026-07-27, n=6) says the *opposite* — A is worse than B at every
-  horizon. Neither is conclusive. Anything resting on "+34% @6h" rests on 13 observations.
+- **The A arm has 13 rows, ever.** On the ledger as of 2026-08-16 (1,007 rows) A medians
+  **+34.0% @6h** against B's −81.1% — the band looks like it is working. Hold that loosely: it is
+  13 observations, and as recently as 2026-07-27 the same ledger at n=6 said the *opposite*
+  (A −89.1% @6h, worse than B at every horizon). Anything resting on "+34% @6h" rests on 13 rows,
+  and the sign of that comparison has already flipped once.
 - **The exit backtest measures the control, not the product.** Of 639 priced rows, ~632 are
   B-tier. `hold_to_end` −0.771 (day-clustered LB −0.824); best exit −0.111. **Nothing clears zero.**
 - **The negative controls are the headline finding.** `ctl_exit_immediately` (buy and sell in the
@@ -196,16 +197,17 @@ path-dependent ones like a trailing stop, because the ordering changes the state
 
 ## Gotchas
 
-- **The local repo is ~260 commits behind `origin/main`.** The cloud is authoritative for
-  `data/ledger.csv`, `data/alert_state.json`, `data/latest_scan.json` and `docs/index.html` — the
-  GitHub Action commits them back every 15 minutes as `solana-screener[bot]`. Never hand-edit
-  those; the local `data/ledger.csv` is stale (ends 2026-07-27) and does **not** match what
-  analysis should run on.
-- **`paper_exec.py` and all of `selfimprove/` are untracked.** Consequences: the cloud runs the
-  older, simpler pipeline (its `run.py` has no paper exec and no livebook); `verify.py` as it
-  exists on disk cannot run against `origin/main`; and `selfimprove/trials.json` — the cumulative
-  trial counter that the whole anti-self-deception argument rests on — has no git history and a
-  fresh clone resets it to zero. *A counter that resets looks like a control and is not one.*
+- **The cloud is authoritative for `data/`.** The GitHub Action commits `data/ledger.csv`,
+  `data/alert_state.json`, `data/latest_scan.json` and `docs/index.html` back every 15 minutes as
+  `solana-screener[bot]`. Never hand-edit those. **`git pull` before any analysis** — this repo
+  sat 260 commits behind for weeks, and the stale local ledger disagreed with the cloud's about
+  whether A-tier beats B (see Measured state).
+- **The livebook has no automatic feed on this Mac.** `run.py` opens its positions but runs on the
+  Actions runner, while the 60s tick job is launchd-local and `data/livebook.json` is gitignored —
+  so `LIVEBOOK_ENABLED` is env-gated (`export SOLANA_LIVEBOOK=1`) and **off by default**, or the
+  cloud would spend a Jupiter quote per survivor filling a book it discards on exit. The clean fix
+  is for `livebook --tick` to open positions from the cloud-committed `data/ledger.csv`. Until
+  then the book must be seeded by hand.
 - **The workflow does `git add data/`, a directory add.** Anything new and non-ignored under
   `data/` is committed automatically, and `.gitignore` does not cover `data/livebook*`,
   `data/paths.jsonl` (~30 MB), `data/proposals/` or `data/corrupt/`.

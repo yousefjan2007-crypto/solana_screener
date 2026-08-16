@@ -8,3 +8,16 @@ data/launches_*.jsonl
 data/listener_state.json
 data/listener_events.jsonl
 data/ledger_s.csv
+data/paper_ledger_s.csv
+data/paper_positions_s.json
+
+# live multi-policy paper book (selfimprove/livebook.py) — local state, rewritten every 60s.
+# Same rationale as the S book above: it must never conflict with what the cloud commits back,
+# and a file that changes every minute would be pure churn in git history.
+data/livebook.json
+data/livebook_fills.csv
+data/livebook_ticks.jsonl
+# regenerable price-path cache (~29 MB); rebuild with `python3 selfimprove/backfill.py`
+data/paths.jsonl
+# quarantined bad data, kept locally as evidence (see CLAUDE.md, fill-ordering bug 2026-08-15)
+data/corrupt/

@@ -14,6 +14,7 @@ import os
 import tempfile
 
 import ledger
+import paper_exec
 import screen
 from screen import hard_gates, high_conviction, soft_score
 from sources.rugcheck import safety_features
@@ -161,6 +162,138 @@ def main() -> None:
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
+
+    # 12. Paper execution: buys are idempotent per mint; TP sells the ladder fraction of
+    # the ORIGINAL size; a stop with NO route closes at $0 (the dead-coin outcome); and
+    # exits for mints never paper-bought (the B control) are ignored. Injected quote_fn,
+    # temp files — no network.
+    tmpl = tempfile.mktemp(suffix="_verify_paper.csv")
+    tmpp = tempfile.mktemp(suffix="_verify_pos.json")
+    try:
+        fake_q = lambda i, o, amt: {"outAmount": str(int(amt) * 2),
+                                    "priceImpactPct": "0.01"}
+        f1 = paper_exec.open_position("M1", "T1", "A", 0.0, ledger_path=tmpl,
+                                      positions_path=tmpp, quote_fn=fake_q)
+        f2 = paper_exec.open_position("M1", "T1", "A", 1.0, ledger_path=tmpl,
+                                      positions_path=tmpp, quote_fn=fake_q)
+        check("paper buy opens once; re-open is a no-op",
+              f1 is not None and f1["tokens_raw_delta"] == 20_000_000 and f2 is None)
+        s1 = paper_exec.execute_exit(
+            {"kind": "tp", "mint": "M1", "symbol": "T1", "levels": [(2.0, 0.50)]},
+            2.0, ledger_path=tmpl, positions_path=tmpp,
+            quote_fn=lambda i, o, amt: {"outAmount": "20000000",
+                                        "priceImpactPct": "0.02"})
+        check("tp sells the ladder fraction of the ORIGINAL size, proceeds in USD",
+              s1 is not None and s1["tokens_raw_delta"] == -10_000_000
+              and abs(s1["usd_flow"] - 20.0) < 1e-9)
+        s2 = paper_exec.execute_exit({"kind": "stop", "mint": "M1", "symbol": "T1"},
+                                     3.0, ledger_path=tmpl, positions_path=tmpp,
+                                     quote_fn=lambda i, o, amt: None)
+        check("stop with NO route liquidates the remainder at $0 and closes",
+              s2 is not None and s2["usd_flow"] == 0.0
+              and s2["tokens_raw_delta"] == -10_000_000)
+        s3 = paper_exec.execute_exit({"kind": "stop", "mint": "M1", "symbol": "T1"},
+                                     4.0, ledger_path=tmpl, positions_path=tmpp,
+                                     quote_fn=fake_q)
+        s4 = paper_exec.execute_exit({"kind": "stop", "mint": "MB", "symbol": "TB"},
+                                     5.0, ledger_path=tmpl, positions_path=tmpp,
+                                     quote_fn=fake_q)
+        check("closed positions and never-bought mints ignore exits",
+              s3 is None and s4 is None)
+    finally:
+        for p in (tmpl, tmpp):
+            if os.path.exists(p):
+                os.remove(p)
+
+    # ── live multi-policy paper book (selfimprove/livebook.py) ──────────────────────
+    # Every one of these corresponds to a mistake actually made while building this.
+    print("\nlive book — multi-policy paper trading")
+    import csv
+    import json
+    import shutil                       # NOT tempfile — it is imported at module scope, and a
+    import config                       # local import would shadow it for the whole function
+    from selfimprove import livebook as LB
+
+    tmpd = tempfile.mkdtemp()
+    real = (LB.BOOK_PATH, LB.FILLS_PATH, LB.TICKS_PATH)
+    LB.BOOK_PATH = os.path.join(tmpd, "b.json")
+    LB.FILLS_PATH = os.path.join(tmpd, "f.csv")
+    LB.TICKS_PATH = os.path.join(tmpd, "t.jsonl")
+    try:
+        TOK = 1_000_000
+        usd = config.STACK_USD * config.POSITION_PCT
+
+        def _run(mults, dt, tag):
+            seq = list(mults)
+
+            def qf(inp, out, amt):
+                if inp == config.USDC_MINT:
+                    return {"outAmount": str(TOK), "priceImpactPct": "0.01"}
+                if not seq:
+                    return None
+                v = seq.pop(0)
+                return None if v is None else {"outAmount": str(int(usd * v * 1e6)),
+                                               "priceImpactPct": "0.02"}
+            LB.open_alert(tag, "T", "A", 0.0, quote_fn=qf)
+            for i in range(len(mults)):
+                LB.tick(dt * (i + 1), quote_fn=qf, verbose=False)
+            return json.load(open(LB.BOOK_PATH))[tag]
+
+        # 1x -> 10x -> bleeds to 0.2x, long enough that every policy resolves
+        p = _run([1, 2, 4, 10, 7, 5, 3, 2, 1.2, .8, .5, .35, .25, .2] + [.2] * 150,
+                 300.0, "PUMP")
+        pol = p["policies"]
+        check("every policy resolves and the position retires",
+              all(s["closed"] for s in pol.values()) and p["done"])
+        check("no policy ends holding a fraction it never sold",
+              all(abs(s["remaining"]) < 1e-9 for s in pol.values()))
+        # THE BUG OF 2026-08-12, in its live form. A trailing stop must exit off the HIGH-WATER
+        # MARK, so on a path that peaks at 10x and dies at 0.2x it must beat hold_to_end. The
+        # bar simulator got this wrong by ratcheting the peak to the current bar's high before
+        # testing that bar's low — look-ahead inside the bar. A tick stream cannot express that
+        # bug, and this asserts the resulting ordering directly.
+        check("a trailing stop beats hold_to_end on a path that peaks then dies",
+              pol["trail_30"]["realized_usd"] > pol["hold_to_end"]["realized_usd"])
+        check("hold_to_end is marked at the final observed price, not at zero or at the peak",
+              abs(pol["hold_to_end"]["realized_usd"] / p["cost_usd"] - 0.2) < 1e-6)
+        # A rung is a pre-committed LIMIT. Filling it at the observed tick (which is at or above
+        # the rung) would be the same class of leak as reading an eventual peak as a fill price.
+        rows = list(csv.DictReader(open(LB.FILLS_PATH)))
+        tps = [r for r in rows if r["side"].startswith("tp_")]
+        check("ladder rungs fill at the rung level, never at the observed tick",
+              bool(tps) and all(r["note"] == "limit fill at rung level" for r in tps))
+        check("the shared entry is taken ONCE and every policy inherits it",
+              sum(1 for r in rows if r["side"] == "buy") == 1)
+
+        # a dead coin is a real outcome, not an error
+        shutil.rmtree(tmpd)
+        tmpd = tempfile.mkdtemp()
+        LB.BOOK_PATH = os.path.join(tmpd, "b.json")
+        LB.FILLS_PATH = os.path.join(tmpd, "f.csv")
+        LB.TICKS_PATH = os.path.join(tmpd, "t.jsonl")
+        p = _run([None], 60.0, "RUG")
+        check("no Jupiter route closes EVERY policy at exactly -1.00 (dead coin, not an error)",
+              all(abs(s["realized_usd"]) < 1e-12 and s["closed"]
+                  for s in p["policies"].values()) and p["done"])
+
+        # the same alert arriving from both the scan and the listener must not double-open
+        def _qf(inp, out, amt):
+            return {"outAmount": str(TOK), "priceImpactPct": "0.01"}
+        a = LB.open_alert("DUP", "T", "A", 0.0, quote_fn=_qf)
+        b = LB.open_alert("DUP", "T", "A", 5.0, quote_fn=_qf)
+        check("a mint alerted twice opens exactly once (scan and listener overlap)",
+              a is not None and b is None)
+
+        # the promotion gate must refuse to act on thin evidence
+        from selfimprove import improve as IMP
+        v = IMP.decide({"champion": "hold_to_end", "n_positions": 3, "n_days": 2,
+                        "n_trials": 15, "policies": {}})
+        check("the promotion gate refuses to promote on thin evidence", not v["promote"])
+        check("MIN_POSITIONS and MIN_DAYS gates are actually wired",
+              IMP.MIN_POSITIONS >= 30 and IMP.MIN_DAYS >= config.MIN_BOOTSTRAP_CLUSTERS)
+    finally:
+        LB.BOOK_PATH, LB.FILLS_PATH, LB.TICKS_PATH = real
+        shutil.rmtree(tmpd, ignore_errors=True)
 
     print("ALL INVARIANTS PASSED")
 

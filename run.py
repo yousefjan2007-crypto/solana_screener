@@ -24,6 +24,7 @@ import time
 import config
 import alerts
 import ledger
+import paper_exec
 from screen import hard_gates, high_conviction, soft_score
 from sources import dexscreener as dex
 from sources import gmgn
@@ -137,6 +138,33 @@ def run(dry_run: bool = True, send: bool = False) -> list[dict]:
         if exits:
             ex_title, ex_body = alerts.format_exit_alert(exits)
             alerts.send_all(ex_title, ex_body, dry_run=not send)
+
+        # paper execution mirrors the alerts: buy what was alerted, sell what the exit
+        # signals say — with real Jupiter quotes, so slippage is measured, not imagined.
+        # Both calls are idempotent per mint; exits for never-bought mints are ignored.
+        if config.PAPER_EXEC:
+            for s in fresh:
+                paper_exec.open_position(s["mint"], s["symbol"], "A", now_s)
+            for e in exits:
+                paper_exec.execute_exit(e, now_s)
+
+        # LIVE MULTI-POLICY BOOK. Same alerts, but every pre-declared exit policy trades them
+        # at once off ONE shared entry fill, so exit comparisons are exact. Deliberately fed
+        # ALL survivors, not just `fresh` A-tier: B-tier is already ledgered silently for the
+        # A-vs-B comparison, and the book needs the volume (the ledger ran ~22 alerts/day
+        # across tiers vs ~1-2 A-tier). open_alert is idempotent per mint and checks the book
+        # BEFORE spending a quote, so re-passing the same survivor every 15 minutes is free.
+        #
+        # Wrapped: this is an experiment bolted onto a screener that works. It must never be
+        # able to break alerting, which is the part that has real value today.
+        if getattr(config, "LIVEBOOK_ENABLED", False):
+            try:
+                from selfimprove import livebook
+                for s in survivors:
+                    livebook.open_alert(s["mint"], s["symbol"], s["tier"], now_s)
+            except Exception as e:                      # noqa: BLE001
+                print(f"  livebook skipped: {type(e).__name__}: {e}")
+
         for s in fresh:
             state[s["mint"]] = now_s
         json.dump(state, open(config.STATE_PATH, "w"), indent=2)

@@ -38,6 +38,7 @@ import websocket  # websocket-client
 import config
 import alerts
 import ledger
+import paper_exec
 import run as pipeline
 from sources import dexscreener as dex
 from sources import rugcheck as rug
@@ -175,6 +176,10 @@ def evaluate_smart_buy(mint: str, wallet: str, label: str) -> None:
           "mcap": row["mcap"], "liq": row["liq_usd"], "score": row["score"],
           "gates": row["gates"], "rugcheck_score": row.get("rugcheck_score")}],
         alert_ts=now_s, path=config.LEDGER_S_PATH)
+    if config.PAPER_EXEC:  # paper-buy at real Jupiter quote — the local S book
+        paper_exec.open_position(mint, row["symbol"], "S", now_s,
+                                 ledger_path=config.PAPER_LEDGER_S_PATH,
+                                 positions_path=config.PAPER_POSITIONS_S_PATH)
 
 
 def s_ledger_maintenance() -> None:
@@ -195,6 +200,11 @@ def s_ledger_maintenance() -> None:
             if exits:
                 t, b = alerts.format_exit_alert(exits)
                 alerts.send_all("[S experiment] " + t, b, dry_run=not SEND)
+                if config.PAPER_EXEC:
+                    for e in exits:
+                        paper_exec.execute_exit(
+                            e, now_s, ledger_path=config.PAPER_LEDGER_S_PATH,
+                            positions_path=config.PAPER_POSITIONS_S_PATH)
         except Exception as e:
             _log(f"S ledger maintenance error: {e}")
 

@@ -26,6 +26,8 @@ _HOST_HZ = {
     "api.dexscreener.com": config.DEXSCREENER_RATE_HZ,
     "api.rugcheck.xyz": config.RUGCHECK_RATE_HZ,
     "openapi.gmgn.ai": 1.0,   # documented default limit: 1 req/s
+    "lite-api.jup.ag": 1.0,   # Jupiter free tier — stay conservative
+    "api.geckoterminal.com": config.GECKOTERMINAL_RATE_HZ,   # hard 30/min free tier
 }
 
 

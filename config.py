@@ -38,11 +38,27 @@ for _d in (DATA_DIR, CACHE_DIR):
 
 SEED = 42  # any randomness → np.random.default_rng(SEED); never global np.random.*
 
+# ── statistical guards (selfimprove/) ────────────────────────────────────────────
+# Consumed by entry_bot/stats.py, which selfimprove/evaluate.py imports directly rather than
+# reimplementing: it is already a decoupled port of the FDR / deflated-Sharpe / reality-check
+# guards and its interface is (outcomes, {rule: mask}) with no panel assumptions.
+FDR_Q = 0.10                # Benjamini-YEKUTIELI (valid under arbitrary dependence), not BH:
+                            # the exit policies are heavily correlated restatements of each other
+BOOTSTRAP_REPS = 4000
+BOOTSTRAP_ALPHA = 0.025     # the decision criterion is the 2.5th percentile, never the mean
+MIN_BOOTSTRAP_CLUSTERS = 12  # a bound built from fewer clusters than this is not a bound
+
 # ── HTTP tunables ────────────────────────────────────────────────────────────────
 HTTP_TIMEOUT = 20
 HTTP_RETRIES = 3
 DEXSCREENER_RATE_HZ = 4.0   # docs allow ~300/min; stay well under
 RUGCHECK_RATE_HZ = 1.0      # free limit undocumented → conservative
+GECKOTERMINAL_RATE_HZ = 0.25  # free tier is a hard 30 calls/min PER IP, shared with
+                              # ~/robinhood_screener's every-2-min job. Measured 2026-08-12:
+                              # 0.4 Hz (24/min) left too little headroom and ~47% of calls came
+                              # back 429, so effective throughput was 0.4*0.53 = 0.21/s. Backing
+                              # off to 0.25 Hz is FASTER as well as politer — a 429 costs a call
+                              # and buys nothing. Do not raise it to "speed things up".
 USER_AGENT = "solana_screener research (personal use)"
 ENRICH_CACHE_MIN = 2        # cache dexscreener enrichment 2 min
 REPORT_CACHE_MIN = 10       # cache rugcheck reports 10 min
@@ -138,6 +154,30 @@ FOOTER = ("Probabilistic screen, NOT a guarantee. Solana memecoins are near-100%
 
 # ── ledger forward horizons (seconds) ─────────────────────────────────────────────
 LEDGER_HORIZONS = {"1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800}
+
+# ── paper execution (Jupiter quotes only — NO keys, NO funds, NO transactions) ─────
+# Measures the number the frictionless ledger can't: EXECUTION COST. A $10 round trip
+# through a ~$80k-liquidity pump.fun pool measured ~-2% before the price moved
+# (2026-07-05). Real automation is justified ONLY if the PAPER scorecard
+# (python3 paper_exec.py) is repeatedly positive — never the ledger's alone.
+PAPER_EXEC = True
+JUP_QUOTE_URL = "https://lite-api.jup.ag/swap/v1/quote"   # free tier ≈ 1 req/s
+USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+PAPER_SLIPPAGE_BPS = 100
+PAPER_LEDGER_PATH = os.path.join(DATA_DIR, "paper_ledger.csv")        # A book (cloud-committed)
+PAPER_POSITIONS_PATH = os.path.join(DATA_DIR, "paper_positions.json")
+PAPER_LEDGER_S_PATH = os.path.join(DATA_DIR, "paper_ledger_s.csv")    # S book (local-only)
+PAPER_POSITIONS_S_PATH = os.path.join(DATA_DIR, "paper_positions_s.json")
+
+# ── live multi-policy paper book (selfimprove/livebook.py) ───────────────────────────
+# Every pre-declared exit policy trades every alert simultaneously off one shared entry fill.
+# It exists because the backtest cannot settle three things and this can: within-bar ordering
+# (a tick stream has no ordering to assume), bar coarseness (347 of 639 backfilled rows priced
+# on 1-HOUR bars), and execution cost (the backtest charges a flat 2%; live Jupiter round trips
+# measured -2.8% to -27.6% on 2026-08-12 depending on liquidity). It is also the only source of
+# genuinely out-of-sample rows, which is the one real cure for having searched the history.
+# Quotes only — no keys, no funds, no transactions.
+LIVEBOOK_ENABLED = True
 
 
 def load_credentials() -> dict:

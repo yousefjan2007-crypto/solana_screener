@@ -31,6 +31,7 @@ can measure the screen's **real** hit-rate over time.
 | `screen.py` | **Pure/deterministic** hard gates + soft score + A-tier test. |
 | `ledger.py` | Track-record CSV: entry snapshot + forward returns (1h/6h/24h/7d). |
 | `alerts.py` | macOS / ntfy / Telegram delivery + ranked body with the trade plan. |
+| `paper_exec.py` | Paper fills at real Jupiter quotes for every alert/exit — measures execution cost (quotes only; no keys, no funds). |
 | `run.py` | One-shot orchestrator (`--commit` / `--send`); `screen_token()` shared with the listener. |
 | `listener.py` | 24/7 PumpPortal WebSocket: logs launches, screens graduations in seconds (launchd). |
 | `dashboard.py` | Renders `docs/index.html` (GitHub Pages phone dashboard) from the latest scan. |
@@ -56,6 +57,7 @@ python3 run.py            # dry run: print ranked survivors, nothing sent/writte
 python3 run.py --commit   # write ledger + state, still no alerts
 python3 run.py --send     # write AND push alerts
 python3 ledger.py         # your honest scorecard, once rows have matured
+python3 paper_exec.py     # the slippage-adjusted paper scorecard (A book + local S book)
 ```
 
 ## Insider/bundle gates + the A-tier band (v2)
@@ -106,9 +108,24 @@ Reuses the Telegram/ntfy secrets already in `~/vrp_backtest/monitor_config.json`
 signal_lab borrows from). Override by creating `solana_screener/config.local.json` with
 `{"ntfy_topic": "...", "telegram": {"bot_token": "...", "chat_id": "..."}}`.
 
+## Paper execution (v4) — the automation gate
+
+Every alerted entry (A-tier and S) and every TP/stop exit is now also simulated as a
+**paper fill at a real Jupiter routing quote** for the plan's actual position size
+(`paper_exec.py`). No keys, no funds, no transactions — quotes only. This measures the
+number the frictionless ledger cannot: **execution cost** (a $10 round trip through a
+~$80k-liquidity pool measured ~-2% before the price moved; a stop on a dead coin with no
+route fills at $0, exactly like real life). The A book lives in `data/paper_ledger.csv`
+(cloud-committed); the S book is listener-local. `python3 paper_exec.py` prints both.
+
+**The rule: real automated trading is only ever justified if the PAPER scorecard is
+repeatedly positive.** The frictionless ledger overstates returns by construction; if the
+edge doesn't survive quoted slippage, an execution layer would just automate losses.
+
 ## Deferred (not in v1)
 
 - **launchd scheduling** (`com.yousefjan.solana-screener.plist`, every 30–60 min) once you trust
   the output. `ALERT_COOLDOWN_HOURS` already makes frequent runs safe from spam.
 - **PumpPortal WebSocket** first-block discovery.
-- **Execution layer** — only ever consider after the ledger shows a real, repeated edge.
+- **Execution layer** — only ever consider after the PAPER ledger (not just the
+  frictionless one) shows a real, repeated edge.

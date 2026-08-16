@@ -177,7 +177,19 @@ PAPER_POSITIONS_S_PATH = os.path.join(DATA_DIR, "paper_positions_s.json")
 # measured -2.8% to -27.6% on 2026-08-12 depending on liquidity). It is also the only source of
 # genuinely out-of-sample rows, which is the one real cure for having searched the history.
 # Quotes only — no keys, no funds, no transactions.
-LIVEBOOK_ENABLED = True
+#
+# OFF BY DEFAULT, and the default is the point. `run.py` is what feeds the book, and run.py runs
+# on the GitHub Actions runner — but the 60s tick job (com.yousefjan.solana-livebook) is launchd,
+# i.e. local, and data/livebook.json is gitignored local state. So with this on in the cloud, each
+# run would spend one Jupiter quote per survivor to open positions into a book that is discarded
+# when the runner exits, while the local ticker sits on an empty book. Enable it only where the
+# ticker actually runs:  export SOLANA_LIVEBOOK=1
+#
+# KNOWN GAP (2026-08-16): that means the book currently has no automatic feed on this Mac, because
+# run.py is not scheduled locally. The clean fix is for livebook to open positions from the
+# cloud-committed data/ledger.csv on each tick — the cloud stays the system of record and the book
+# reads it — which also requires this repo to actually pull. Until then, seed it by hand.
+LIVEBOOK_ENABLED = os.environ.get("SOLANA_LIVEBOOK", "").lower() in ("1", "true", "yes")
 
 
 def load_credentials() -> dict:

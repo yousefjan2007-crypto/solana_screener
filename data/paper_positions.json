@@ -8,5 +8,15 @@
     "tokens_remaining_raw": 22113716436,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "tUgWWjQc6xSszvMdtWvXPYFPX1iv8CsQN8t4XB3pump": {
+    "symbol": "YESBOT",
+    "tier": "A",
+    "opened_ts": 1786899827.118944,
+    "cost_usd": 10.0,
+    "tokens_raw": 17992189188,
+    "tokens_remaining_raw": 17992189188,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

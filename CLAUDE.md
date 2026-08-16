@@ -124,9 +124,10 @@ the observed tick (mildly optimistic — `gap_s` is recorded on every fill so th
 
 ### 4. The self-improvement loop
 
-`livebook` accumulates out-of-sample rows 24/7 → `improve.py` re-scores weekly, applies the
-promotion gate, and writes a proposal to `data/proposals/`. **It never edits config.** The
-champion changes only when a human edits `champion.json`.
+`livebook --tick` feeds itself from the cloud-committed ledger (see Gotchas) and accumulates
+out-of-sample rows 24/7 → `improve.py` re-scores weekly, applies the promotion gate, and writes a
+proposal to `data/proposals/`. **It never edits config.** The champion changes only when a human
+edits `champion.json`.
 
 The gate is built against one specific failure: re-scoring a correlated family and adopting
 whichever currently leads is a maximum over correlated series, which drifts upward under a pure
@@ -202,12 +203,16 @@ path-dependent ones like a trailing stop, because the ordering changes the state
   `solana-screener[bot]`. Never hand-edit those. **`git pull` before any analysis** — this repo
   sat 260 commits behind for weeks, and the stale local ledger disagreed with the cloud's about
   whether A-tier beats B (see Measured state).
-- **The livebook has no automatic feed on this Mac.** `run.py` opens its positions but runs on the
-  Actions runner, while the 60s tick job is launchd-local and `data/livebook.json` is gitignored —
-  so `LIVEBOOK_ENABLED` is env-gated (`export SOLANA_LIVEBOOK=1`) and **off by default**, or the
-  cloud would spend a Jupiter quote per survivor filling a book it discards on exit. The clean fix
-  is for `livebook --tick` to open positions from the cloud-committed `data/ledger.csv`. Until
-  then the book must be seeded by hand.
+- **The livebook feeds itself from the cloud ledger, and pays an entry lag for it.** `run.py`
+  opens positions but runs on the Actions runner while the ticker is launchd-local, so
+  `LIVEBOOK_ENABLED` is env-gated (`export SOLANA_LIVEBOOK=1`) and **off by default** — otherwise
+  the cloud would spend a Jupiter quote per survivor filling a book it discards on exit. Instead
+  `livebook --tick` reads `git show origin/main:data/ledger.csv` after a `git fetch` (never a
+  `git pull` — a collection job must not be able to conflict or move HEAD). The cost: the cloud
+  commits every 15 min, so entries land **15–25 minutes after `alert_ts`**. Every position records
+  `entry_lag_s`; anything past `MAX_ENTRY_LAG_S` (30 min) is refused into
+  `data/livebook_missed.jsonl` with its lag, so the kept set's bias is checkable rather than
+  invisible. **Read `entry_lag_s` before trusting any live number** — it is not a t=0 entry.
 - **The workflow does `git add data/`, a directory add.** Anything new and non-ignored under
   `data/` is committed automatically, and `.gitignore` does not cover `data/livebook*`,
   `data/paths.jsonl` (~30 MB), `data/proposals/` or `data/corrupt/`.

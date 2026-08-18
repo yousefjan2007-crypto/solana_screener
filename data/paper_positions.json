@@ -18,5 +18,15 @@
     "tokens_remaining_raw": 17992189188,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "7yqbQhuc9jVMA1XzHbN6awy6cjfUon7ZeTvNLJDvpump": {
+    "symbol": "KOTON",
+    "tier": "A",
+    "opened_ts": 1787049550.005668,
+    "cost_usd": 10.0,
+    "tokens_raw": 22880152882,
+    "tokens_remaining_raw": 22880152882,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

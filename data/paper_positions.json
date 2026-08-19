@@ -28,5 +28,15 @@
     "tokens_remaining_raw": 22880152882,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "5gkuTAKAskEhhc1D6ACtF6mmstfCg2Ldm5qT4C84pump": {
+    "symbol": "ANSEMSZN",
+    "tier": "A",
+    "opened_ts": 1787126190.8996265,
+    "cost_usd": 10.0,
+    "tokens_raw": 70031421919,
+    "tokens_remaining_raw": 70031421919,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

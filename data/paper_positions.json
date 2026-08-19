@@ -38,5 +38,15 @@
     "tokens_remaining_raw": 70031421919,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "FJBWgfc8wdEeUc2n7BN9EcmEJQUauvvpp9ZXvmF2pump": {
+    "symbol": "SOLUG",
+    "tier": "A",
+    "opened_ts": 1787148031.6076052,
+    "cost_usd": 10.0,
+    "tokens_raw": 76524882950,
+    "tokens_remaining_raw": 76524882950,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

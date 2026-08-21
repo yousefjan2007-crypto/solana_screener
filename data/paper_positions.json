@@ -58,5 +58,15 @@
     "tokens_remaining_raw": 40653767340,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "897wEhKQtCKXuxxoDA8BH9LWnSpdTKLVzqh1J8xFpump": {
+    "symbol": "BULLBALLS",
+    "tier": "A",
+    "opened_ts": 1787295702.90451,
+    "cost_usd": 10.0,
+    "tokens_raw": 1487520723,
+    "tokens_remaining_raw": 1487520723,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

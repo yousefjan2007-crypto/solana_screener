@@ -68,5 +68,15 @@
     "tokens_remaining_raw": 1487520723,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "oW6jSvHLEqk54WHq88bpQjbYB9ZoKbkoNqN3j1npump": {
+    "symbol": "TRULL",
+    "tier": "A",
+    "opened_ts": 1787309511.1358447,
+    "cost_usd": 10.0,
+    "tokens_raw": 55468673260,
+    "tokens_remaining_raw": 55468673260,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

@@ -88,5 +88,15 @@
     "tokens_remaining_raw": 8442461371,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "VJdpSDDLof7HuZiNmsRUSL4YCncsk1FGiVoHyAJpump": {
+    "symbol": "BREAKING",
+    "tier": "A",
+    "opened_ts": 1787331345.9032037,
+    "cost_usd": 10.0,
+    "tokens_raw": 6173827199,
+    "tokens_remaining_raw": 6173827199,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

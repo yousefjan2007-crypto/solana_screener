@@ -78,5 +78,15 @@
     "tokens_remaining_raw": 55468673260,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "GiAXHqgpNXcjMTRVDvUk2kr4ZnARePn8Zg7nCTTZpump": {
+    "symbol": "RIKA",
+    "tier": "A",
+    "opened_ts": 1787327509.4710789,
+    "cost_usd": 10.0,
+    "tokens_raw": 8442461371,
+    "tokens_remaining_raw": 8442461371,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

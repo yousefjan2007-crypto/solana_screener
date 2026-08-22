@@ -98,5 +98,15 @@
     "tokens_remaining_raw": 6173827199,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "918p2GRyDLkhsRvtAHaKZg8yrP5kXSe6CYustqTcpump": {
+    "symbol": "CATSZN",
+    "tier": "A",
+    "opened_ts": 1787394823.8949964,
+    "cost_usd": 10.0,
+    "tokens_raw": 5498901562,
+    "tokens_remaining_raw": 5498901562,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

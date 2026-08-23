@@ -138,5 +138,15 @@
     "tokens_remaining_raw": 7730641358,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "BKaXDgZxUSC9njpX89xpQ5USh2pnK1yzZvgk8Mg7pump": {
+    "symbol": "CATLIST",
+    "tier": "A",
+    "opened_ts": 1787514003.384331,
+    "cost_usd": 10.0,
+    "tokens_raw": 24777589693,
+    "tokens_remaining_raw": 24777589693,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

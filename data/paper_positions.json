@@ -128,5 +128,15 @@
     "tokens_remaining_raw": 11063580241,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "XVTWySJscWWGf7rasayZ1AL9m85SYPWX8CxNxxppump": {
+    "symbol": "EARNBOT",
+    "tier": "A",
+    "opened_ts": 1787500332.900572,
+    "cost_usd": 10.0,
+    "tokens_raw": 7730641358,
+    "tokens_remaining_raw": 7730641358,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

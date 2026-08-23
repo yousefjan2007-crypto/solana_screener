@@ -118,5 +118,15 @@
     "tokens_remaining_raw": 0,
     "realized_usd": 4.637796,
     "closed": true
+  },
+  "FW6R4QQeP4fzqRwDHbBkpjHx3ecvYwhd5g7chKg8pump": {
+    "symbol": "WINNING",
+    "tier": "A",
+    "opened_ts": 1787490342.1362069,
+    "cost_usd": 10.0,
+    "tokens_raw": 11063580241,
+    "tokens_remaining_raw": 11063580241,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

@@ -108,5 +108,15 @@
     "tokens_remaining_raw": 5498901562,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "7sAnqhZvNCVKqc3Jj6QVDrdqtmnZJY3NePgXTqRtpump": {
+    "symbol": "CallCat",
+    "tier": "A",
+    "opened_ts": 1787477815.4881608,
+    "cost_usd": 10.0,
+    "tokens_raw": 13047314668,
+    "tokens_remaining_raw": 13047314668,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

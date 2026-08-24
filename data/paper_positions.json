@@ -148,5 +148,15 @@
     "tokens_remaining_raw": 24777589693,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "4cvZwC17oMiUA7peKX5GhbaUWv4U5Lwrd8118xnFpump": {
+    "symbol": "CATALORIAN",
+    "tier": "A",
+    "opened_ts": 1787565448.306997,
+    "cost_usd": 10.0,
+    "tokens_raw": 1340493659,
+    "tokens_remaining_raw": 1340493659,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

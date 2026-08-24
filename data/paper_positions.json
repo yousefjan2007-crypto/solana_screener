@@ -158,5 +158,15 @@
     "tokens_remaining_raw": 1340493659,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "66ZEoQSgY3g5KEijP8ZUucth9ZmrxwYg8ngzwgP6pump": {
+    "symbol": "CATCUS",
+    "tier": "A",
+    "opened_ts": 1787570057.4841673,
+    "cost_usd": 10.0,
+    "tokens_raw": 49141801243,
+    "tokens_remaining_raw": 49141801243,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

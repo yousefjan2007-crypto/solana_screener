@@ -188,5 +188,15 @@
     "tokens_remaining_raw": 28521066357,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "D9qNfYpFtP9E3YpjBJDCD5PuWoD3445cC9K6PMX5pump": {
+    "symbol": "TRENCHERS",
+    "tier": "A",
+    "opened_ts": 1787636416.3890798,
+    "cost_usd": 10.0,
+    "tokens_raw": 48651019829,
+    "tokens_remaining_raw": 48651019829,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

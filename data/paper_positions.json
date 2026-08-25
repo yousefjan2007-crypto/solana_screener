@@ -195,9 +195,9 @@
     "opened_ts": 1787636416.3890798,
     "cost_usd": 10.0,
     "tokens_raw": 48651019829,
-    "tokens_remaining_raw": 24325509915,
-    "realized_usd": 9.920112,
-    "closed": false
+    "tokens_remaining_raw": 0,
+    "realized_usd": 10.017244999999999,
+    "closed": true
   },
   "52ZzDVDPk8S4T1rfKNWSvtDnzhLN8omMK1xLCBBWpump": {
     "symbol": "MrCate",

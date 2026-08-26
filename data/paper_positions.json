@@ -218,5 +218,15 @@
     "tokens_remaining_raw": 56303880839,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "2WbTSrJHr1hNCtmYBjuSetZNdsZWZ2eZTuK9GjNPpump": {
+    "symbol": "Pistacia",
+    "tier": "A",
+    "opened_ts": 1787728455.1191638,
+    "cost_usd": 10.0,
+    "tokens_raw": 37945194736,
+    "tokens_remaining_raw": 37945194736,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

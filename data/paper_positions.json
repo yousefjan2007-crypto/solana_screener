@@ -248,5 +248,15 @@
     "tokens_remaining_raw": 37595178539,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "24GWZn5HerwLTVoZuC3H7Kxg6jLFMvroA1hTU4uWpump": {
+    "symbol": "cat",
+    "tier": "A",
+    "opened_ts": 1787800975.921965,
+    "cost_usd": 10.0,
+    "tokens_raw": 38377047474,
+    "tokens_remaining_raw": 38377047474,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

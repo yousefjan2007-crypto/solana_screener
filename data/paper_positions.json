@@ -258,5 +258,15 @@
     "tokens_remaining_raw": 38377047474,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "GNGhPhcLt5HJ6WjUHQSYoY3KhBFsksxu6FpvLpCFpump": {
+    "symbol": "invest",
+    "tier": "A",
+    "opened_ts": 1787952427.5568464,
+    "cost_usd": 10.0,
+    "tokens_raw": 99492977275,
+    "tokens_remaining_raw": 99492977275,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

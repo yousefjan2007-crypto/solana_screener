@@ -278,5 +278,25 @@
     "tokens_remaining_raw": 12210279136,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "ANJR7QNkxLWa6eHHFjVAwb1mi5GFkVQHroyG8xSopump": {
+    "symbol": "APEUS",
+    "tier": "A",
+    "opened_ts": 1788188470.8136668,
+    "cost_usd": 10.0,
+    "tokens_raw": 7990206322,
+    "tokens_remaining_raw": 7990206322,
+    "realized_usd": 0.0,
+    "closed": false
+  },
+  "DnQu6xQd9zzW5dWpKppjNTRcTYFS6JDpK5xLXEZypump": {
+    "symbol": "catfish",
+    "tier": "A",
+    "opened_ts": 1788188470.8136668,
+    "cost_usd": 10.0,
+    "tokens_raw": 92771307642,
+    "tokens_remaining_raw": 92771307642,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

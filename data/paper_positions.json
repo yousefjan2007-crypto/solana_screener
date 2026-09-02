@@ -328,5 +328,15 @@
     "tokens_remaining_raw": 10603051963,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "232BE9YxiJ1qHAJH8ymCojmX7BjePxKcitaJ6dqopump": {
+    "symbol": "HOPE",
+    "tier": "A",
+    "opened_ts": 1788390948.2810113,
+    "cost_usd": 10.0,
+    "tokens_raw": 83434035630,
+    "tokens_remaining_raw": 83434035630,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

@@ -308,5 +308,15 @@
     "tokens_remaining_raw": 0,
     "realized_usd": 0.329441,
     "closed": true
+  },
+  "2wA2beVvKC83cCS2s1Zq1a2XuA5S4SPqhiQLfkVspump": {
+    "symbol": "stonkape",
+    "tier": "A",
+    "opened_ts": 1788327848.395914,
+    "cost_usd": 10.0,
+    "tokens_raw": 32074964498,
+    "tokens_remaining_raw": 32074964498,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

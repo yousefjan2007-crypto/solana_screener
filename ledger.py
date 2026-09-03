@@ -28,7 +28,7 @@ FWD_COLS: list[str] = []
 for _h in HORIZ:
     FWD_COLS += [f"price_{_h}", f"mcap_{_h}", f"ret_{_h}"]
 TAIL_COLS = ["max_ret_seen", "min_ret_seen", "rugged_after", "status",
-             "tp_alerted", "stop_alerted"]
+             "tp_alerted", "stop_alerted", "suspect_ticks"]
 COLUMNS = BASE_COLS + FWD_COLS + TAIL_COLS
 
 _EMPTY = ("", "nan", "None", "NaN")
@@ -40,7 +40,10 @@ def load(path: str | None = None) -> pd.DataFrame:
         # astype(object): pandas >=3 makes dtype=str a STRICT string dtype that raises on
         # the float/bool cell writes update_forward() does; object accepts mixed values on
         # every pandas version (the cloud runner installs latest, the Mac runs 2.x).
-        return pd.read_csv(path, dtype=str).astype(object)
+        # reindex: a CSV written before a schema addition (e.g. suspect_ticks) must load
+        # with the missing columns present, or the first read-before-write crashes in
+        # exactly the incident path the new column exists for.
+        return pd.read_csv(path, dtype=str).astype(object).reindex(columns=COLUMNS)
     return pd.DataFrame(columns=COLUMNS)
 
 
@@ -77,7 +80,7 @@ def record_alerts(rows: list[dict], alert_ts: float, path: str | None = None) ->
             "rugcheck_score": r.get("rugcheck_score", ""),
             "max_ret_seen": 0.0, "min_ret_seen": 0.0,
             "rugged_after": False, "status": "open",
-            "tp_alerted": 0.0, "stop_alerted": False,
+            "tp_alerted": 0.0, "stop_alerted": False, "suspect_ticks": 0,
         })
         new.append(rec)
     if new:
@@ -106,8 +109,8 @@ def update_forward(now_s: float, snapshot_fn, report_fn=None,
     events: list[dict] = []
     last_h = list(HORIZ)[-1]
     for i in led.index:
-        if str(led.at[i, "status"]) == "resolved":
-            continue  # 7d horizon already recorded → stop spending API calls on it
+        if str(led.at[i, "status"]) in ("resolved", "suspect"):
+            continue  # recorded through 7d, or terminally suspect → stop spending API calls
         entry = _num(led.at[i, "entry_price"])
         if entry <= 0:
             continue
@@ -120,6 +123,35 @@ def update_forward(now_s: float, snapshot_fn, report_fn=None,
         # (no price) counts as -100%.
         snap = snapshot_fn(mint) or {}
         cur_price = _num(snap.get("price_usd"))
+
+        # Quote-integrity gate (FOMO regression, 2026-09). Dexscreener re-picks the
+        # deepest pair on every call; a pair-switch (or broken tick) changes the price
+        # scale and once poisoned max_ret_seen with a 1283x that no horizon cell ever
+        # saw. Implied supply (mcap/price) is invariant across honest quotes, so a
+        # snapshot whose supply disagrees with the entry's by > SUPPLY_DRIFT_MAX is
+        # rejected wholesale — no ratchet, no exit events, no horizon fills this run
+        # (write-once cells stay empty and retry on the next run's quote). A dead
+        # token (no price at all) is NOT suspect: -100% stays the honest outcome.
+        # mcap can be absent on exactly the thin/odd pairs a switch lands on; fdv/price
+        # is the same supply invariant, so fall back to it rather than failing open.
+        cur_mcap = _num(snap.get("mcap")) or _num(snap.get("fdv"))
+        entry_mcap = _num(led.at[i, "entry_mcap"])
+        if cur_price > 0 and cur_mcap > 0 and entry_mcap > 0:
+            supply_ratio = (cur_mcap / cur_price) / (entry_mcap / entry)
+            if not (1.0 / config.SUPPLY_DRIFT_MAX <= supply_ratio
+                    <= config.SUPPLY_DRIFT_MAX):
+                n_sus = _num(led.at[i, "suspect_ticks"]) + 1
+                led.at[i, "suspect_ticks"] = n_sus
+                # A LEGITIMATE supply change (burn, provider correction) would fail this
+                # gate on every honest quote forever — never resolving, polled in
+                # perpetuity, silently missing from every summary denominator. After
+                # SUSPECT_TICKS_MAX consecutive-run rejections the row is terminally
+                # 'suspect': cells stay empty (honest), polling stops, and summary()
+                # reports it as its own category instead of "not matured yet".
+                if n_sus >= config.SUSPECT_TICKS_MAX:
+                    led.at[i, "status"] = "suspect"
+                continue
+
         cur_ret = (cur_price / entry - 1.0) if cur_price > 0 else -1.0
         led.at[i, "max_ret_seen"] = max(cur_ret, _num(led.at[i, "max_ret_seen"]))
         led.at[i, "min_ret_seen"] = min(cur_ret, _num(led.at[i, "min_ret_seen"]))
@@ -212,6 +244,11 @@ def summary(path: str | None = None) -> None:
                       f"worst={r.min()*100:+.0f}%")
         ra = sub["rugged_after"].astype(str).str.lower().eq("true").mean()
         print(f"    rugged-after-passing-gates: {ra*100:.0f}%")
+    n_sus = led["status"].astype(str).eq("suspect").sum()
+    if n_sus:
+        print(f"  quote-integrity: {n_sus} row(s) terminally SUSPECT (implied supply moved "
+              f">{config.SUPPLY_DRIFT_MAX}x vs entry) — excluded from every rate above, "
+              f"NOT 'still maturing'.")
     print("  If tier A does not clearly beat tier B here, the A-tier band is NOT adding "
           "signal — loosen/rethink it rather than trusting the label.")
     print("  Reminder: negative expectancy is the base rate. A losing scorecard here is "

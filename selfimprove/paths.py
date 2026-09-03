@@ -127,7 +127,10 @@ def _ohlcv(pool: str, timeframe: str, aggregate: int) -> tuple[str, list]:
         try:
             out.append({"ts": float(row[0]), "o": float(row[1]), "h": float(row[2]),
                         "l": float(row[3]), "c": float(row[4]),
-                        "v": float(row[5]) if len(row) > 5 else 0.0})
+                        # None when the feed omits volume — distinct from a real 0.0:
+                        # the sanitizer drops v==0 bars as phantom prints, and a bar
+                        # whose volume is merely UNREPORTED must not be conflated in.
+                        "v": float(row[5]) if len(row) > 5 else None})
         except (TypeError, ValueError):
             continue
     out.sort(key=lambda b: b["ts"])

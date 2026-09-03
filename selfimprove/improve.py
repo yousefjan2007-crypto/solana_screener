@@ -76,6 +76,16 @@ MIN_DAYS = config.MIN_BOOTSTRAP_CLUSTERS      # print floor
 PROMOTE_MIN_CLUSTERS = 40                     # promotion floor, from the coverage measurement
 DSR_GATE = 0.95           # signal_lab's promote gate, reused deliberately
 
+# Forward-only floors: a nominee is judged ONCE, on the pre-registered PREFIX of its
+# forward sample — the earliest forward positions satisfying both floors. Recomputing a
+# 2.5% bound on a growing sample and promoting at the first pass is a sequential test
+# with inflated type-I error (the same class of bug the 2026-08-15 rebuild measured),
+# so the sample is fixed by rule, not by when the cron happens to run. The day floor is
+# the SAME 40-cluster floor promotion check #5 uses — anything smaller advertises a bar
+# the checks don't actually accept.
+FWD_MIN_POSITIONS = 30
+FWD_MIN_DAYS = PROMOTE_MIN_CLUSTERS
+
 
 def _day(ts: float) -> str:
     return time.strftime("%Y-%m-%d", time.gmtime(ts))
@@ -97,7 +107,10 @@ def live_returns() -> tuple[dict, list, list]:
         rets = []
         for p in done:
             st = p["policies"].get(name)
-            rets.append(st["realized_usd"] / p["cost_usd"] - 1.0 if st else np.nan)
+            # A state backfilled MID-FLIGHT records fabricated economics ("exit at 3h"
+            # filled at deploy time) — tradeable for continuity, never scoreable.
+            ok = st and not st.get("backfilled_ts")
+            rets.append(st["realized_usd"] / p["cost_usd"] - 1.0 if ok else np.nan)
         out[name] = np.array(rets, dtype=float)
     return out, days, mints
 
@@ -137,13 +150,20 @@ def paired_lb(challenger: np.ndarray, champion: np.ndarray, days: list,
     return lb
 
 
-def load_champion() -> str:
+def _champion_state() -> dict:
+    """champion.json: {champion} plus, when a nomination is live, {nominee,
+    nominated_at_alert_seq, nominated_ts}. A nomination is sticky until promoted or
+    cleared by hand — that is what makes it a pre-registration rather than a ranking."""
     if os.path.exists(CHAMPION_PATH):
         try:
-            return json.load(open(CHAMPION_PATH)).get("champion", DEFAULT_CHAMPION)
+            return json.load(open(CHAMPION_PATH))
         except Exception:
             pass
-    return DEFAULT_CHAMPION
+    return {}
+
+
+def load_champion() -> str:
+    return _champion_state().get("champion", DEFAULT_CHAMPION)
 
 
 def evaluate_all() -> dict:
@@ -166,22 +186,47 @@ def evaluate_all() -> dict:
     book = LB._load(LB.BOOK_PATH, {})
     done = sorted([p for p in book.values() if p.get("done") and p.get("cost_usd", 0) > 0],
                   key=lambda p: p["opened_ts"])
+    ctl_rets: dict = {}
     for cname, cpol in getattr(POL, "CONTROLS", {}).items():
         cr = []
         for p in done:
             st = p["policies"].get(cname)
-            cr.append(st["realized_usd"] / p["cost_usd"] - 1.0 if st else np.nan)
+            ok = st and not st.get("backfilled_ts")
+            if ok and cname == "ctl_random_exit":
+                # Quarantine the poisoned era: before 2026-09 the live book never read
+                # random_exit, so every such state closed as hold_to_end's alias
+                # (close_reason tracking_window_end/time_exit). Only rows the control
+                # actually acted on — or dead-coin closes, identical for everyone by
+                # construction — are admissible evidence.
+                ok = st.get("close_reason") in ("random_exit", "no_route")
+            cr.append(st["realized_usd"] / p["cost_usd"] - 1.0 if ok else np.nan)
         cr = np.array(cr, dtype=float)
         if cr.size and not np.all(np.isnan(cr)):
+            ctl_rets[cname] = cr
             clb, cnd = cluster_boot(cr, days)
             res["controls"][cname] = {"n": int(np.sum(~np.isnan(cr))),
                                       "mean": float(np.nanmean(cr)), "day_lb": clb,
                                       "n_days": cnd}
+    # Apparatus self-test (2026-09): random_exit was implemented only in the bar
+    # simulator, so the LIVE control was bit-identical to hold_to_end on 294/294
+    # positions — an alias of the champion cannot detect anything. Flag any control
+    # whose realized returns exactly match the champion's on every shared position.
+    res["inert_controls"] = []
+    if base is not None:
+        for cname, cr in ctl_rets.items():
+            if cr.size == base.size:
+                both = ~(np.isnan(cr) | np.isnan(base))
+                if both.any() and np.allclose(cr[both], base[both]):
+                    res["inert_controls"].append(cname)
     for name, r in rets.items():
         lb, nd = cluster_boot(r, days)
-        row = {"n": int(np.sum(~np.isnan(r))), "mean": float(np.nanmean(r)),
+        ok_r = ~np.isnan(r)
+        row = {"n": int(ok_r.sum()), "mean": float(np.nanmean(r)),
                "median": float(np.nanmedian(r)),
-               "win_rate": float(np.nanmean(r > 0)), "day_lb": lb, "n_days": nd}
+               # over non-NaN only: nanmean(r > 0) counts a NaN position as a loss,
+               # deflating every late-added policy's win rate
+               "win_rate": float(np.mean(r[ok_r] > 0)) if ok_r.any() else float("nan"),
+               "day_lb": lb, "n_days": nd}
         if base is not None and name != champ:
             row["paired_mean"] = float(np.nanmean(r - base))
             row["paired_lb"] = paired_lb(r, base, days)
@@ -199,6 +244,58 @@ def evaluate_all() -> dict:
         except Exception:
             row["dsr"] = float("nan")
         res["policies"][name] = row
+
+    # Forward-only nomination (contract point 3 of decide(); previously documented but
+    # unimplemented — forward_only was hardcoded False and nothing anywhere set it, so
+    # promotion check #7 was unreachable). If champion.json carries a nominee, its
+    # promotion-facing stats are recomputed on ONLY the positions whose alert_seq
+    # postdates the nomination; once the forward floors are met, that pre-registered
+    # sample REPLACES the nominee's table row and forward_only goes True.
+    # max over the WHOLE book, open positions included: an open position at nomination
+    # time predates the pre-registration and must never count as forward evidence.
+    res["max_alert_seq"] = max([p.get("alert_seq", -1) for p in book.values()] or [-1])
+    nom = _champion_state()
+    nominee, nom_seq = nom.get("nominee"), nom.get("nominated_at_alert_seq")
+    if nominee and nominee in rets and nom_seq is not None:
+        # PRE-REGISTERED PREFIX: the earliest forward positions (time order) satisfying
+        # both floors, fixed by rule — later positions are excluded even after they
+        # complete, so the bound is computed exactly once on exactly one sample.
+        fmask = np.zeros(len(done), dtype=bool)
+        pref_days: set = set()
+        for j, p in enumerate(done):
+            if p.get("alert_seq", -1) <= nom_seq or np.isnan(rets[nominee][j]):
+                continue
+            if fmask.sum() >= FWD_MIN_POSITIONS and len(pref_days) >= FWD_MIN_DAYS:
+                break
+            fmask[j] = True
+            pref_days.add(days[j])
+        fr = np.where(fmask, rets[nominee], np.nan)
+        ok = ~np.isnan(fr)
+        n_fwd = int(ok.sum())
+        nd_fwd = len(pref_days)
+        res["nomination"] = {"nominee": nominee, "nominated_at_alert_seq": nom_seq,
+                             "n_forward": n_fwd, "days_forward": nd_fwd}
+        if n_fwd >= FWD_MIN_POSITIONS and nd_fwd >= FWD_MIN_DAYS:
+            lb, nd = cluster_boot(fr, days)
+            row = {"n": n_fwd, "mean": float(np.nanmean(fr)),
+                   "median": float(np.nanmedian(fr)),
+                   "win_rate": float(np.mean(fr[ok] > 0)), "day_lb": lb, "n_days": nd,
+                   "forward_only": True}
+            if base is not None and nominee != champ:
+                fb = np.where(fmask, base, np.nan)
+                row["paired_mean"] = float(np.nanmean(fr - fb))
+                row["paired_lb"] = paired_lb(fr, fb, days)
+            try:
+                dm: dict = {}
+                for v, d in zip(fr, days):
+                    if not np.isnan(v):
+                        dm.setdefault(d, []).append(v)
+                row["dsr"] = float(ST.deflated_sharpe_ratio(
+                    [float(np.mean(v)) for v in dm.values()], n_trials))
+            except Exception:
+                row["dsr"] = float("nan")
+            res["policies"][nominee] = row
+            res["forward_only"] = True
     return res
 
 
@@ -224,8 +321,13 @@ def decide(res: dict) -> dict:
        beats holding, p=0.0000" was never evidence that any exit is skilful — it is evidence
        that holding to zero is catastrophic and anything else beats it. A policy earns nothing
        until it beats not-holding.
-    2. IF ANY CONTROL PASSES, NO PROPOSAL IS EMITTED AT ALL. A control clearing the gate is proof
-       the apparatus is measuring itself, and no number from that run may be quoted.
+    2. APPARATUS FAULTS VOID THE RUN ENTIRELY (rebuilt 2026-09: the original version voided
+       whenever a control beat hold_to_end — but point 1 already establishes that NOT-holding
+       genuinely beats holding here, so that "fault" was a fact about the asset class and it
+       short-circuited every run forever). A run is void only when a control is INERT
+       (bit-identical to the champion — it cannot detect anything) or PROFITABLE on its own
+       clustered bound (impossible against round-trip costs on honest quotes). Voided runs
+       suppress the per-policy table: no number from them may be quoted.
     3. PROMOTION IS FORWARD-ONLY. The winner is NOMINATED on today's data (free — a nomination is
        not a claim) and tested only on positions whose `alert_seq` exceeds the one recorded at
        nomination. That converts a family-wise maximum into one pre-registered hypothesis, which
@@ -235,13 +337,32 @@ def decide(res: dict) -> dict:
     reasons, best, best_lb = [], None, -1e9
     ctl = res.get("controls", {})
 
-    # (2) — the apparatus check comes first and is disqualifying
-    passing_ctl = [n for n, r in ctl.items() if r.get("day_lb", -9) > res.get("champ_lb", -9)]
-    if passing_ctl:
+    # (2) — apparatus checks come first and are disqualifying. REBUILT 2026-09: the old
+    # check voided the run whenever a control's LB beat the CHAMPION's — but point (1)
+    # above already establishes that with ~-95% median fates NOT-holding genuinely beats
+    # holding, so a control beating hold_to_end is a fact about the asset class, not the
+    # apparatus. That check short-circuited every run before the real bar (beat the best
+    # control, promotion check #2 below) could ever act. A run is void only on faults
+    # that are actually about the machinery:
+    broken = []
+    if res.get("inert_controls"):
+        broken.append("INERT CONTROL: " + ", ".join(res["inert_controls"]) +
+                      " is bit-identical to the champion on every position — an alias "
+                      "of the champion cannot detect anything")
+    # Judgment-call arm, not a law of nature: in a sustained mania regime a random-hold
+    # exit CAN be genuinely profitable net of costs, and this check would then void runs
+    # in exactly the regime where the screen works. If it fires repeatedly during a
+    # strong tape, re-examine the check before trusting it.
+    profitable_ctl = [n for n, r in ctl.items() if r.get("day_lb", -9) > 0]
+    if profitable_ctl:
+        broken.append("CONTROL PROFITABLE ON ITS OWN BOUND: " + ", ".join(profitable_ctl) +
+                      " — a do-nothing policy should not beat round-trip costs on honest "
+                      "quotes; treat the measurement as corrupted (or the regime as one "
+                      "this check cannot serve — see the comment above it)")
+    if broken:
         return {"promote": False, "winner": None, "gate_broken": True,
-                "reasons": [f"NEGATIVE CONTROL CLEARED THE GATE: {', '.join(passing_ctl)}. "
-                            f"The gate is measuring its own machinery; no number from this run "
-                            f"may be quoted."]}
+                "reasons": ["THE GATE IS MEASURING ITS OWN MACHINERY; no number from "
+                            "this run may be quoted."] + broken}
 
     if res["n_positions"] < MIN_POSITIONS:
         reasons.append(f"only {res['n_positions']} completed positions (needs {MIN_POSITIONS})")
@@ -255,11 +376,23 @@ def decide(res: dict) -> dict:
     # (1) — the bar is the best control, not the champion
     ctl_lb = max([r.get("day_lb", -1e9) for r in ctl.values()] or [-1e9])
     ctl_name = max(ctl, key=lambda n: ctl[n].get("day_lb", -1e9)) if ctl else None
-    for name, row in res["policies"].items():
-        if name == champ or "paired_lb" not in row:
-            continue
-        if row["paired_lb"] > best_lb:
-            best, best_lb = name, row["paired_lb"]
+    nom = res.get("nomination")
+    if nom and nom["nominee"] in res["policies"]:
+        # (3) — a live nomination means exactly ONE pre-registered hypothesis is on
+        # trial. Judging today's leaderboard max instead would reintroduce the
+        # family-wise maximum the nomination exists to remove.
+        best = nom["nominee"]
+        best_lb = res["policies"][best].get("paired_lb", -1e9)
+        if not res.get("forward_only"):
+            reasons.append(f"nominee `{best}` awaiting its forward sample: "
+                           f"{nom['n_forward']}/{FWD_MIN_POSITIONS} positions across "
+                           f"{nom['days_forward']}/{FWD_MIN_DAYS} alert-days")
+    else:
+        for name, row in res["policies"].items():
+            if name == champ or "paired_lb" not in row:
+                continue
+            if row["paired_lb"] > best_lb:
+                best, best_lb = name, row["paired_lb"]
     if best is None:
         reasons.append("no challenger scored")
         return {"promote": False, "winner": None, "reasons": reasons}
@@ -281,8 +414,23 @@ def decide(res: dict) -> dict:
          bool(res.get("forward_only")), "nomination/test split"),
     ]
     failed = [f"{lbl} — {detail}" for lbl, ok, detail in checks if not ok]
-    return {"promote": not failed, "winner": best, "checks": checks,
-            "reasons": reasons + failed}
+    out = {"promote": not failed, "winner": best, "checks": checks,
+           "reasons": reasons + failed}
+    # NOMINATE when the only failing check is the forward-only split, nothing is
+    # nominated yet, and the sample floors are met. A nomination is free (it is not a
+    # claim) — main() writes it to champion.json; from then on this policy alone is on
+    # trial, on rows it has never seen.
+    only_fwd_blocked = bool(failed) and all("FORWARD-ONLY" in f for f in failed)
+    if (nom is None and only_fwd_blocked
+            and res["n_positions"] >= MIN_POSITIONS
+            and res["n_days"] >= PROMOTE_MIN_CLUSTERS):
+        out["nominate"] = best
+    # The one-shot judgment: a nominee whose PRE-REGISTERED forward prefix has matured
+    # and still fails any check is terminally FAILED — main() clears the nomination and
+    # records it, instead of the nominee wedging the loop forever as a silent zombie.
+    if nom and res.get("forward_only") and failed:
+        out["nomination_failed"] = nom["nominee"]
+    return out
 
 
 def write_proposal(res: dict, verdict: dict) -> str:
@@ -295,7 +443,11 @@ def write_proposal(res: dict, verdict: dict) -> str:
              f"- completed live positions: **{res['n_positions']}** across "
              f"**{res['n_days']}** alert-days",
              f"- cumulative distinct hypotheses ever scored: **{res['n_trials']}**", ""]
-    if not res["policies"]:
+    if verdict.get("gate_broken"):
+        lines += ["**Per-policy table suppressed — this run is VOID** (apparatus fault; "
+                  "see blocking reasons below). Quoting its numbers anywhere defeats the "
+                  "point of voiding the run.", ""]
+    elif not res["policies"]:
         lines += ["No completed positions yet. The book is still filling.", ""]
     else:
         lines += ["| policy | n | mean | day LB | paired vs champ | paired LB | DSR |",
@@ -336,17 +488,42 @@ def main() -> None:
     quiet = "--quiet" in sys.argv
     res = evaluate_all()
     verdict = decide(res)
+
+    def _write_champion(state: dict) -> None:
+        # atomic: a crash mid-write must not leave invalid JSON that _champion_state()
+        # silently swallows into "no nomination ever happened"
+        tmp = CHAMPION_PATH + ".tmp"
+        with open(tmp, "w") as fh:
+            json.dump(state, fh, indent=1)
+        os.replace(tmp, CHAMPION_PATH)
+
+    prior = _champion_state()
+    if verdict.get("nomination_failed"):
+        _write_champion({"champion": res["champion"],
+                         "failed_nominee": verdict["nomination_failed"],
+                         "failed_ts": res["ts"],
+                         "failed_at_alert_seq": prior.get("nominated_at_alert_seq")})
+    elif verdict.get("nominate") and not prior.get("nominee"):
+        # never overwrite a live nomination — even one whose policy was since renamed:
+        # a pre-registration that can be silently replaced is not a pre-registration
+        _write_champion({"champion": res["champion"], "nominee": verdict["nominate"],
+                         "nominated_at_alert_seq": res.get("max_alert_seq", -1),
+                         "nominated_ts": res["ts"]})
     path = write_proposal(res, verdict)
     with open(HISTORY_PATH, "a") as fh:
         fh.write(json.dumps({"ts": res["ts"], "n": res["n_positions"],
                              "days": res["n_days"], "champion": res["champion"],
                              "winner": verdict.get("winner"),
-                             "promote": verdict["promote"]}) + "\n")
+                             "promote": verdict["promote"],
+                             "nominated": verdict.get("nominate"),
+                             "gate_broken": bool(verdict.get("gate_broken"))}) + "\n")
     if quiet:
         return
     print(f"champion `{res['champion']}`  |  {res['n_positions']} completed positions across "
           f"{res['n_days']} alert-days  |  {res['n_trials']} cumulative trials")
-    if res["policies"]:
+    if verdict.get("gate_broken"):
+        print("\n  per-policy table suppressed: run is VOID (apparatus fault)")
+    elif res["policies"]:
         print(f"\n  {'policy':<24s} {'n':>4s} {'mean':>8s} {'day LB':>8s} "
               f"{'vs champ':>9s} {'paired LB':>10s} {'DSR':>6s}")
         for name, r in sorted(res["policies"].items(),
@@ -362,6 +539,15 @@ def main() -> None:
         print("\n  NO CHANGE. blocking:")
         for r in verdict["reasons"]:
             print(f"    - {r}")
+    if verdict.get("nomination_failed"):
+        print(f"\n  NOMINATION FAILED -> {verdict['nomination_failed']} judged once on its "
+              f"pre-registered forward prefix and did not clear; nomination cleared.")
+    elif verdict.get("nominate") and not prior.get("nominee"):
+        print(f"\n  NOMINATED -> {verdict['nominate']}  (forward-only trial starts at "
+              f"alert_seq {res.get('max_alert_seq', -1)}; champion.json updated)")
+    elif verdict.get("nominate"):
+        print(f"\n  (would nominate {verdict['nominate']}, but a prior nomination for "
+              f"`{prior.get('nominee')}` is still on file — clear it by hand first)")
     # A lead is not evidence. Show how often each policy has topped the table across runs, so a
     # six-week winning streak out of pure noise is visible as such rather than persuasive.
     if os.path.exists(HISTORY_PATH):

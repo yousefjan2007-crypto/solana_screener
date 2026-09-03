@@ -140,30 +140,126 @@ def main() -> None:
              {"mint": "MB", "symbol": "TB", "tier": "B", "price": 1.0,
               "mcap": 1, "liq": 1, "score": 50, "gates": {}}],
             alert_ts=0.0, path=tmp)
-        _, ev = ledger.update_forward(10.0, lambda m: {"price_usd": 2.5, "mcap": 1},
+        # snapshots carry a SUPPLY-CONSISTENT mcap (entry 1.0/1 => supply 1, so
+        # mcap == price) — the quote-integrity gate rejects anything else by design.
+        _, ev = ledger.update_forward(10.0, lambda m: {"price_usd": 2.5, "mcap": 2.5},
                                       path=tmp)
         check("2.5x fires ONE tp event, tier A only",
               len(ev) == 1 and ev[0]["kind"] == "tp" and ev[0]["symbol"] == "TA"
               and ev[0]["levels"][-1][0] == 2.0)
-        _, ev2 = ledger.update_forward(20.0, lambda m: {"price_usd": 2.6, "mcap": 1},
+        _, ev2 = ledger.update_forward(20.0, lambda m: {"price_usd": 2.6, "mcap": 2.6},
                                        path=tmp)
         check("tp does NOT re-fire on the same level", ev2 == [])
-        _, ev3 = ledger.update_forward(30.0, lambda m: {"price_usd": 6.0, "mcap": 1},
+        _, ev3 = ledger.update_forward(30.0, lambda m: {"price_usd": 6.0, "mcap": 6.0},
                                        path=tmp)
         check("next ladder level (5x) fires once",
               len(ev3) == 1 and ev3[0]["levels"] == [(5.0, 0.25)])
-        _, ev4 = ledger.update_forward(40.0, lambda m: {"price_usd": 0.4, "mcap": 1},
+        _, ev4 = ledger.update_forward(40.0, lambda m: {"price_usd": 0.4, "mcap": 0.4},
                                        path=tmp)
         check("stop breach fires ONE stop event, tier A only",
               len(ev4) == 1 and ev4[0]["kind"] == "stop" and ev4[0]["symbol"] == "TA")
-        _, ev5 = ledger.update_forward(50.0, lambda m: {"price_usd": 0.3, "mcap": 1},
+        _, ev5 = ledger.update_forward(50.0, lambda m: {"price_usd": 0.3, "mcap": 0.3},
                                        path=tmp)
         check("stop does NOT re-fire", ev5 == [])
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
 
-    # 12. Paper execution: buys are idempotent per mint; TP sells the ladder fraction of
+    # 12. QUOTE-INTEGRITY GATE ($FOMO REGRESSION, 2026-09). A Dexscreener pair-switch
+    # once wrote a 1283x max_ret_seen that no horizon cell ever saw. A snapshot whose
+    # implied supply (mcap/price) disagrees with the entry's must write NOTHING that
+    # run; an honest quote afterwards resumes; a dead coin stays the -100% path.
+    tmp = tempfile.mktemp(suffix="_verify_gate.csv")
+    try:
+        ledger.record_alerts(
+            [{"mint": "MG", "symbol": "TG", "tier": "B", "price": 1.0,
+              "mcap": 1000.0, "liq": 1, "score": 50, "gates": {}}],
+            alert_ts=0.0, path=tmp)
+        f1, _ = ledger.update_forward(
+            3600.0, lambda m: {"price_usd": 500.0, "mcap": 1000.0}, path=tmp)
+        led = ledger.load(tmp)
+        check("pair-switch snapshot fills no horizon cell", f1 == 0)
+        check("pair-switch snapshot does not ratchet max_ret_seen",
+              float(led.at[0, "max_ret_seen"]) == 0.0)
+        check("suspect_ticks counts the rejection",
+              float(led.at[0, "suspect_ticks"]) == 1.0)
+        f2, _ = ledger.update_forward(
+            3700.0, lambda m: {"price_usd": 2.5, "mcap": 2500.0}, path=tmp)
+        led = ledger.load(tmp)
+        check("an honest quote after a rejected one resumes tracking",
+              f2 == 1 and abs(float(led.at[0, "max_ret_seen"]) - 1.5) < 1e-9)
+        f3, _ = ledger.update_forward(21700.0, lambda m: {}, path=tmp)
+        led = ledger.load(tmp)
+        check("a dead coin still records -100% (absence of a quote is NOT suspect)",
+              float(led.at[0, "ret_6h"]) == -1.0
+              and float(led.at[0, "suspect_ticks"]) == 1.0)
+        # A LEGIT supply change would fail the gate on every honest quote forever —
+        # after SUSPECT_TICKS_MAX rejections the row must go terminally 'suspect'
+        # (its own summary category, never "still maturing") and stop being polled.
+        for k in range(ledger.config.SUSPECT_TICKS_MAX - 1):
+            ledger.update_forward(21800.0 + k,
+                                  lambda m: {"price_usd": 500.0, "mcap": 1000.0},
+                                  path=tmp)
+        led = ledger.load(tmp)
+        check("persistent supply shift goes terminally 'suspect' at SUSPECT_TICKS_MAX",
+              str(led.at[0, "status"]) == "suspect"
+              and float(led.at[0, "suspect_ticks"]) == ledger.config.SUSPECT_TICKS_MAX)
+        f4, _ = ledger.update_forward(
+            40000.0, lambda m: {"price_usd": 2.0, "mcap": 2000.0}, path=tmp)
+        check("suspect rows are never polled or written again", f4 == 0)
+        # Pre-migration CSV (no suspect_ticks column yet — the cloud writes those for a
+        # while after merge) must survive the incident path, not KeyError inside it.
+        tmp2 = tempfile.mktemp(suffix="_verify_old.csv")
+        try:
+            ledger.record_alerts(
+                [{"mint": "MOLD", "symbol": "TO", "tier": "B", "price": 1.0,
+                  "mcap": 1000.0, "liq": 1, "score": 50, "gates": {}}],
+                alert_ts=0.0, path=tmp2)
+            old = ledger.pd.read_csv(tmp2).drop(columns=["suspect_ticks"])
+            old.to_csv(tmp2, index=False)
+            f5, _ = ledger.update_forward(
+                3600.0, lambda m: {"price_usd": 500.0, "mcap": 1000.0}, path=tmp2)
+            led2 = ledger.load(tmp2)
+            check("a pre-migration CSV survives the incident path (no KeyError)",
+                  f5 == 0 and float(led2.at[0, "suspect_ticks"]) == 1.0)
+        finally:
+            if os.path.exists(tmp2):
+                os.remove(tmp2)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+    # 13. PATH SANITIZER ($STABLECAT 804x / $Girlet 71x REGRESSIONS, 2026-09). A dead
+    # pool can print phantom highs on zero-volume bars, and GeckoTerminal can pick a
+    # pool mispriced vs the ledger's Dexscreener entry — both corrupted real analyses.
+    import json as _json
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "selfimprove"))
+    import evaluate as EV
+    tmpj = tempfile.mktemp(suffix="_verify_paths.jsonl")
+    try:
+        recs = [
+            {"mint": "OKM", "entry": 1.0, "bars": [
+                {"ts": 0, "o": 1, "h": 1.2, "l": 0.9, "c": 1.1, "v": 10},
+                {"ts": 60, "o": 1.1, "h": 804.0, "l": 1.0, "c": 1.05, "v": 0},
+                {"ts": 120, "o": 1.05, "h": 1.3, "l": 1.0, "c": 1.2, "v": 5}]},
+            {"mint": "BADPOOL", "entry": 0.014, "bars": [
+                {"ts": 0, "o": 0.014, "h": 0.02, "l": 0.01, "c": 0.015, "v": 3}]},
+        ]
+        with open(tmpj, "w") as fh:
+            for r in recs:
+                fh.write(_json.dumps(r) + "\n")
+        clean = EV.load_paths(tmpj, ledger_entry={"OKM": 1.0, "BADPOOL": 1.0})
+        check("a zero-volume phantom bar is excluded from a path",
+              len(clean) == 1 and max(b["h"] for b in clean[0]["bars"]) == 1.3)
+        check("a path from a mispriced pool is dropped wholesale",
+              all(r["mint"] != "BADPOOL" for r in clean))
+    finally:
+        if os.path.exists(tmpj):
+            os.remove(tmpj)
+
+    # 14. Paper execution: buys are idempotent per mint; TP sells the ladder fraction of
     # the ORIGINAL size; a stop with NO route closes at $0 (the dead-coin outcome); and
     # exits for mints never paper-bought (the B control) are ignored. Injected quote_fn,
     # temp files — no network.
@@ -325,6 +421,90 @@ def main() -> None:
         check("the promotion gate refuses to promote on thin evidence", not v["promote"])
         check("MIN_POSITIONS and MIN_DAYS gates are actually wired",
               IMP.MIN_POSITIONS >= 30 and IMP.MIN_DAYS >= config.MIN_BOOTSTRAP_CLUSTERS)
+
+        # ── APPARATUS-CHECK REBUILD (2026-09). The old pre-check voided every run
+        # because ctl_exit_immediately's LB beats hold_to_end's — a fact about -95%
+        # median coin fates, not about the machinery. These pin the new semantics.
+        def _res(**over):
+            base = {"champion": "hold_to_end", "n_positions": 400, "n_days": 45,
+                    "n_trials": 16, "forward_only": False,
+                    "controls": {"ctl_exit_immediately": {"day_lb": -0.06}},
+                    "inert_controls": [],
+                    "policies": {
+                        "hold_to_end": {"n": 400, "mean": -0.7, "median": -0.95,
+                                        "win_rate": 0.05, "day_lb": -0.8, "n_days": 45},
+                        "sell_15m": {"n": 400, "mean": -0.1, "median": -0.05,
+                                     "win_rate": 0.4, "day_lb": -0.2, "n_days": 45,
+                                     "paired_mean": 0.6, "paired_lb": 0.5, "dsr": 0.99}}}
+            base.update(over)
+            return base
+        v1 = IMP.decide(_res())
+        check("a control beating hold_to_end no longer voids the run",
+              not v1.get("gate_broken"))
+        check("a challenger below the control bar still cannot promote",
+              not v1["promote"])
+        check("an INERT control voids the run",
+              IMP.decide(_res(inert_controls=["ctl_random_exit"])).get("gate_broken")
+              is True)
+        check("a PROFITABLE control voids the run",
+              IMP.decide(_res(controls={"ctl_exit_immediately": {"day_lb": 0.02}}))
+              .get("gate_broken") is True)
+        # forward-only nomination: a challenger clearing every bar except the forward
+        # split gets NOMINATED, not promoted; an active nomination is judged alone.
+        good = {"n": 400, "mean": 0.1, "median": 0.02, "win_rate": 0.55,
+                "day_lb": 0.05, "n_days": 45, "paired_mean": 0.8, "paired_lb": 0.7,
+                "dsr": 0.99}
+        vn = IMP.decide(_res(policies={"hold_to_end": _res()["policies"]["hold_to_end"],
+                                       "sell_15m": good}))
+        check("clearing every bar except forward-only NOMINATES instead of promoting",
+              vn.get("nominate") == "sell_15m" and not vn["promote"])
+        vw = IMP.decide(_res(
+            policies={"hold_to_end": _res()["policies"]["hold_to_end"],
+                      "sell_15m": good, "sell_1h": dict(good, paired_lb=0.9)},
+            nomination={"nominee": "sell_15m", "nominated_at_alert_seq": 100,
+                        "n_forward": 5, "days_forward": 2}))
+        check("an active nomination is judged ALONE (leaderboard max ignored) and waits",
+              vw.get("winner") == "sell_15m" and not vw["promote"]
+              and "nominate" not in vw)
+        vf = IMP.decide(_res(
+            forward_only=True,
+            policies={"hold_to_end": _res()["policies"]["hold_to_end"],
+                      "sell_15m": dict(good, forward_only=True)},
+            nomination={"nominee": "sell_15m", "nominated_at_alert_seq": 100,
+                        "n_forward": 60, "days_forward": 45}))
+        check("a nominee passing every check on its FORWARD sample promotes",
+              vf["promote"] and vf["winner"] == "sell_15m")
+
+        # ── random_exit control acts in the LIVE book (2026-09: it was simulator-only
+        # and bit-identical to hold_to_end on 294/294 live positions).
+        pos_r = {"mint": "RNDX", "symbol": "R", "tier": "B", "entry_px": 1.0,
+                 "opened_ts": 0.0, "tokens_raw": 1}
+        st_r = {"remaining": 1.0, "peak_px": 1.0, "rungs_left": None,
+                "realized_usd": 0.0, "closed": False}
+        st_h = {"remaining": 1.0, "peak_px": 1.0, "rungs_left": None,
+                "realized_usd": 0.0, "closed": False}
+        LB._step_policy(pos_r, "ctl_random_exit", st_r, 1.0,
+                        LB.DECISION_HORIZON_S, 10.0, 60.0)
+        LB._step_policy(pos_r, "hold_to_end", st_h, 1.0,
+                        LB.DECISION_HORIZON_S, 10.0, 60.0)
+        check("random_exit control acts in the live book (no hold_to_end alias)",
+              st_r["closed"] and st_r.get("close_reason") == "random_exit"
+              and not st_h["closed"])
+        # The hold must equal the sha256-derived draw exactly — recomputing it HERE
+        # (independent of _step_policy's internals) pins the algorithm, so a switch to
+        # process-salted hash() or an unseeded rng fails this check.
+        import hashlib as _hl
+        import numpy as _np
+        _seed = config.SEED + int(_hl.sha256(b"RNDX").hexdigest()[:8], 16)
+        _hold = float(_np.random.default_rng(_seed).uniform(0.0, LB.DECISION_HORIZON_S))
+        st_r2 = {"remaining": 1.0, "peak_px": 1.0, "rungs_left": None,
+                 "realized_usd": 0.0, "closed": False}
+        LB._step_policy(pos_r, "ctl_random_exit", st_r2, 1.0, _hold * 0.999, 10.0, 60.0)
+        st_r3 = {"remaining": 1.0, "peak_px": 1.0, "rungs_left": None,
+                 "realized_usd": 0.0, "closed": False}
+        LB._step_policy(pos_r, "ctl_random_exit", st_r3, 1.0, _hold + 1.0, 10.0, 60.0)
+        check("random_exit fires exactly at its sha256-derived hold (stable seed)",
+              (not st_r2["closed"]) and st_r3["closed"])
     finally:
         LB.BOOK_PATH, LB.FILLS_PATH, LB.TICKS_PATH = real
         shutil.rmtree(tmpd, ignore_errors=True)

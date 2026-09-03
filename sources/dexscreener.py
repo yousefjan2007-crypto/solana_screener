@@ -94,6 +94,12 @@ def _normalize(p: dict, mint: str, now_s: float) -> dict:
         "buys_h1": int(_f(h1.get("buys"))),
         "sells_h1": int(_f(h1.get("sells"))),
         "price_chg_h1": _f(pc.get("h1")),
+        # m5 momentum (2026-09 audit round 2): fetched all along, previously dropped —
+        # the finest at-alert momentum Dexscreener offers, archived for future training.
+        "vol_m5": _f(vol.get("m5")),
+        "buys_m5": int(_f((txns.get("m5") or {}).get("buys"))),
+        "sells_m5": int(_f((txns.get("m5") or {}).get("sells"))),
+        "price_chg_m5": _f(pc.get("m5")),
         "pair_created_ms": created_ms,
         "pair_age_min": age_min,
         "dex": p.get("dexId", ""),

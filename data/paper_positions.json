@@ -348,5 +348,15 @@
     "tokens_remaining_raw": 39029126137,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "Cd2b8guD4a4fgNng43Wk9sHDJ11tB8ie3EGABjWdpump": {
+    "symbol": "HAM",
+    "tier": "A",
+    "opened_ts": 1788433555.1209266,
+    "cost_usd": 10.0,
+    "tokens_raw": 102278224809,
+    "tokens_remaining_raw": 102278224809,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

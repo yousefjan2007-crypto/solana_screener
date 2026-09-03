@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import ssl
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -21,6 +22,7 @@ import config
 
 _SSL = ssl.create_default_context(cafile=certifi.where())
 _last_call: dict[str, float] = {}
+_throttle_lock = threading.Lock()
 
 _HOST_HZ = {
     "api.dexscreener.com": config.DEXSCREENER_RATE_HZ,
@@ -32,12 +34,23 @@ _HOST_HZ = {
 
 
 def _throttle(host: str) -> None:
-    hz = _HOST_HZ.get(host, 2.0)
-    gap = 1.0 / hz
-    dt = time.monotonic() - _last_call.get(host, 0.0)
-    if dt < gap:
-        time.sleep(gap - dt)
-    _last_call[host] = time.monotonic()
+    """Wait until this host's next slot is due.
+
+    Held under a lock, and the sleep happens INSIDE it — that is the whole point.
+    Unsynchronised, N threads all read the same stale _last_call, all compute the
+    same gap, all sleep the same interval and all fire together, so a "1 Hz" host
+    ceiling becomes N requests in one instant. That is not hypothetical here:
+    solana_screener/listener.py evaluates pump.fun migrations concurrently, and
+    graduations arrive in clusters. RugCheck's limit is undocumented, which is
+    exactly why it is pinned low and must not be burst through.
+    """
+    with _throttle_lock:
+        hz = _HOST_HZ.get(host, 2.0)
+        gap = 1.0 / hz
+        dt = time.monotonic() - _last_call.get(host, 0.0)
+        if dt < gap:
+            time.sleep(gap - dt)
+        _last_call[host] = time.monotonic()
 
 
 def get_json(url: str, cache_path: str | None = None, max_age_sec: float | None = None,

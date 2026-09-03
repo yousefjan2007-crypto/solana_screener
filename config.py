@@ -208,6 +208,24 @@ LEDGER_POLL_S = 300.0             # how often to re-read the cloud ledger; the c
 MAX_ENTRY_LAG_S = 30 * 60
 
 
+def _check_perms(path):
+    """Warn when a credential file is readable by anyone but its owner.
+
+    Secrets sit in plaintext behind FileVault; the file mode is the only thing
+    between them and every other process on this machine. A file created by a
+    shell redirect lands at the umask default (0644), which is how three of
+    these ended up world-readable — so this warns rather than assumes.
+    ai_visibility/setkey.py is the writer that gets it right (chmod 0600).
+    """
+    try:
+        mode = os.stat(path).st_mode & 0o777
+    except OSError:
+        return
+    if mode & 0o077:
+        print("  [warn] %s is mode %o (world-readable) - run: chmod 600 %s"
+              % (path, mode, path))
+
+
 def load_credentials() -> dict:
     """Load push secrets without hardcoding them. Priority, so the SAME code runs both on
     a GitHub Actions runner and on your Mac:
@@ -224,6 +242,7 @@ def load_credentials() -> dict:
 
     local = os.path.join(ROOT, "config.local.json")
     if os.path.exists(local):
+        _check_perms(local)
         try:
             loc = json.load(open(local))
             for k, v in loc.items():
@@ -235,6 +254,7 @@ def load_credentials() -> dict:
     if not creds["telegram"]:
         mon = os.path.join(VRP_BACKTEST, "monitor_config.json")
         if os.path.exists(mon):
+            _check_perms(mon)
             try:
                 m = json.load(open(mon))
                 creds["telegram"] = m.get("telegram", {})

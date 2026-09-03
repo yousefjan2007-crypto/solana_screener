@@ -329,6 +329,61 @@ def main() -> None:
         LB.BOOK_PATH, LB.FILLS_PATH, LB.TICKS_PATH = real
         shutil.rmtree(tmpd, ignore_errors=True)
 
+    # ── the rate limiter must hold under concurrency ────────────────────────────
+    # API rate limits are per-IP and shared with sibling projects, and RugCheck's is
+    # undocumented — which is why it is pinned at 1 Hz. That ceiling is only real if
+    # concurrent callers queue. listener.py evaluates pump.fun migrations off the
+    # socket thread and graduations arrive in clusters, so this is the live case,
+    # not a hypothetical one.
+    import threading as _th
+    import time as _time
+
+    import http_client as _hc
+    _hc._HOST_HZ["verify.invalid"] = 20.0        # 0.05s gap: proves pacing, stays fast
+    try:
+        _hc._last_call.pop("verify.invalid", None)
+        stamps, slock = [], _th.Lock()
+
+        def _tick():
+            _hc._throttle("verify.invalid")
+            with slock:
+                stamps.append(_time.monotonic())
+
+        ths = [_th.Thread(target=_tick) for _ in range(8)]
+        t0 = _time.monotonic()
+        for t in ths:
+            t.start()
+        for t in ths:
+            t.join()
+        elapsed = _time.monotonic() - t0
+        stamps.sort()
+        tightest = min(stamps[i + 1] - stamps[i] for i in range(len(stamps) - 1))
+        # Unlocked this finishes in ~0s with a 0.000s gap — measured, and the reason
+        # the check is on the gap and not merely on the total.
+        check("8 concurrent callers cannot burst through a host rate limit",
+              tightest >= 0.045 and elapsed >= 0.045 * 7)
+    finally:
+        _hc._HOST_HZ.pop("verify.invalid", None)
+        _hc._last_call.pop("verify.invalid", None)
+
+    # The other half: the throttle can only pace what it is asked about, so the
+    # listener must not be able to put an unbounded number of callers in front of it.
+    import listener as _ls
+    check("listener evaluations run on a BOUNDED pool, not a thread per event",
+          _ls._evaluators._max_workers == _ls.EVAL_WORKERS and _ls.EVAL_WORKERS <= 4)
+    _src = open(os.path.join(config.ROOT, "listener.py")).read()
+    check("no unbounded per-event thread survives in listener.py",
+          "threading.Thread(target=evaluate_" not in _src)
+    # A raising evaluation must not poison the pool. ThreadPoolExecutor buries the
+    # exception in a Future nobody reads, so _submit wraps and logs it instead.
+    def _boom():
+        raise RuntimeError("boom")
+
+    _ls._submit(_boom)
+    _after = _ls._evaluators.submit(lambda: "alive").result(timeout=5)
+    check("a raising evaluation is contained and the pool still runs work after it",
+          _after == "alive")
+
     print("ALL INVARIANTS PASSED")
 
 

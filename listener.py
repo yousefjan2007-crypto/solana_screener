@@ -31,6 +31,7 @@ import os
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import certifi
 import websocket  # websocket-client
@@ -49,6 +50,33 @@ EVENTS_LOG = os.path.join(config.DATA_DIR, "listener_events.jsonl")
 LAUNCH_LOG_KEEP_DAYS = 7
 # Dexscreener needs a little time to index a brand-new pool; retry schedule (seconds).
 ENRICH_RETRY_DELAYS = (10, 30, 60, 120)
+
+# Evaluations run off the socket thread so a slow screen never stalls the feed, but
+# they are BOUNDED. A thread per event was unbounded by construction: pump.fun
+# graduations arrive in clusters, and every evaluation spends most of its life
+# asleep inside http_client._throttle. Unbounded, a burst of N put N threads in that
+# sleep simultaneously and they all woke together — see the lock in http_client, which
+# is the other half of this fix. The cap is what keeps the queue from becoming the
+# burst. Small on purpose: the work is rate-limited by RugCheck at 1 Hz, so more
+# workers buy nothing but a longer queue of stale mints.
+EVAL_WORKERS = 3
+_evaluators = ThreadPoolExecutor(max_workers=EVAL_WORKERS,
+                                 thread_name_prefix="eval")
+
+
+def _submit(fn, *args) -> None:
+    """Queue an evaluation, and never let one kill the socket thread.
+
+    ThreadPoolExecutor swallows an exception into the Future, and nothing here ever
+    reads the Future — so without this wrapper a raising evaluation would vanish
+    silently. A dropped mint is acceptable; a dropped mint nobody can see is not.
+    """
+    def guarded():
+        try:
+            fn(*args)
+        except Exception as exc:
+            _log(f"evaluation failed ({fn.__name__}): {exc}")
+    _evaluators.submit(guarded)
 
 SEND = "--send" in sys.argv
 TEST = "--test" in sys.argv
@@ -224,8 +252,7 @@ def on_message(ws, raw: str) -> None:
         label = SMART_WALLETS.get(wallet) or wallet[:8]
         _log(f"SMART BUY {label} → {mint}" + (" (test: not evaluated)" if TEST else ""))
         if not TEST:
-            threading.Thread(target=evaluate_smart_buy, args=(mint, wallet, label),
-                             daemon=True).start()
+            _submit(evaluate_smart_buy, mint, wallet, label)
     elif tx == "create":
         _append_jsonl(_launch_log_path(now_s), {
             "ts": now_s, "mint": mint, "symbol": msg.get("symbol", "?"),
@@ -238,8 +265,7 @@ def on_message(ws, raw: str) -> None:
         sym = msg.get("symbol", "?")
         _log(f"MIGRATE  {sym:12.12s} {mint}" + ("" if not TEST else " (test: not evaluated)"))
         if not TEST:
-            threading.Thread(target=evaluate_migration, args=(mint, sym),
-                             daemon=True).start()
+            _submit(evaluate_migration, mint, sym)
 
 
 # Same certifi idiom as every urllib call in this workspace — the system certs fail

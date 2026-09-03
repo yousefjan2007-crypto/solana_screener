@@ -358,5 +358,15 @@
     "tokens_remaining_raw": 102278224809,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "FCtBQkhEotgvzHXABha2sdmgkv7C2YLkvmyMQK2Ypump": {
+    "symbol": "BAPE",
+    "tier": "A",
+    "opened_ts": 1788477586.5759525,
+    "cost_usd": 10.0,
+    "tokens_raw": 45440836112,
+    "tokens_remaining_raw": 45440836112,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

@@ -140,7 +140,7 @@ def simulate(entry: float, bars: list, policy: dict, pessimistic: bool = True) -
 # real cross-policy correlation of 0.561, the day structure and the skew) and then taking the MAX
 # over 14 policies of the day-clustered 2.5% lower bound crosses zero 33.3% of the time at 12
 # alert-days and 20.0% at 41. A gate that fires a third of the time on noise is not a gate.
-# These three exist so that failure is VISIBLE rather than inferred: if any control clears the
+# These exist so that failure is VISIBLE rather than inferred: if any control clears the
 # promotion gate, improve.py refuses to emit a proposal at all. A control that passes is the
 # cheapest possible proof that the apparatus is measuring itself.
 CONTROLS = {
@@ -158,6 +158,9 @@ POLICIES: dict[str, dict] = {
     "sell_30m":               {"max_hold_s": 30 * 60},
     "sell_1h":                {"max_hold_s": 1 * H},
     "sell_2h":                {"max_hold_s": 2 * H},
+    # 2026-09 audit: median time-to-peak among 2x winners is ~3.6h — the 2h..6h gap was
+    # exactly where the lifecycle data points. One new trial (DSR deflates accordingly).
+    "sell_3h":                {"max_hold_s": 3 * H},
     "sell_6h":                {"max_hold_s": 6 * H},
     # stop only
     "stop_30":                {"stop": 0.30},

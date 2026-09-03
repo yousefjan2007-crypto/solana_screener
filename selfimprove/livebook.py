@@ -51,6 +51,7 @@ No keys, no funds, no transactions — quotes only, exactly like paper_exec.py.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import sys
@@ -217,6 +218,20 @@ def _step_policy(pos: dict, name: str, st: dict, px: float, now_s: float,
                       "tier": pos["tier"], "policy": name, "side": reason,
                       "frac_of_original": round(frac, 6), "px": fill_px,
                       "usd_proceeds": round(usd, 6), "gap_s": round(gap_s, 1), "note": ""})
+
+    # random_exit control (2026-09 audit: this key was read only by the bar simulator, so
+    # the live control was a bit-identical alias of hold_to_end on 294/294 positions —
+    # a control that cannot detect anything). Streaming equivalent of "uniform random
+    # bar": a per-mint deterministic hold drawn uniform over the decision horizon, closed
+    # at the first tick past it. Seeded from a stable digest — NOT builtin hash(), which
+    # PYTHONHASHSEED salts per process — so it can never be re-rolled until it looks bad.
+    if pol.get("random_exit"):
+        seed = config.SEED + int(hashlib.sha256(pos["mint"].encode()).hexdigest()[:8], 16)
+        import numpy as _np
+        hold_s = float(_np.random.default_rng(seed).uniform(0.0, DECISION_HORIZON_S))
+        if (now_s - pos["opened_ts"]) >= hold_s:
+            _close("random_exit", px)
+        return fills
 
     if exit_level is not None and px <= exit_level:
         _close("trail" if (trail_frac is not None and

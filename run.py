@@ -72,6 +72,22 @@ def screen_token(mint: str, m: dict) -> dict | None:
         "gmgn_sniper_wallets": safety.get("gmgn_sniper_wallets", 0),
         "gmgn_smart_wallets": safety.get("gmgn_smart_wallets", 0),
         "rugcheck_score": safety.get("risk_score"),
+        # Archived-but-unscored safety continua (2026-09 audit): latest_scan.json's git
+        # history is the project's only point-in-time feature store, and these were
+        # being computed then thrown away. Logging only — nothing reads them yet.
+        "insider_pct": safety.get("insider_pct"),
+        "dev_pct": safety.get("dev_pct"),
+        "creator_dead_frac": safety.get("creator_dead_frac"),
+        "lp_locked_pct": safety.get("lp_locked_pct"),
+        "danger_risks": safety.get("danger_risks"),
+        "gmgn_bundler_ratio": safety.get("gmgn_bundler_ratio"),
+        "gmgn_rat_wallets": safety.get("gmgn_rat_wallets"),
+        "gmgn_sniper_hold_pct": safety.get("gmgn_sniper_hold_pct"),
+        "gmgn_insider_hold_pct": safety.get("gmgn_insider_hold_pct"),
+        "gmgn_bundler_vol_pct": safety.get("gmgn_bundler_vol_pct"),
+        "gmgn_rat_vol_pct": safety.get("gmgn_rat_vol_pct"),
+        "gmgn_fresh_wallet_pct": safety.get("gmgn_fresh_wallet_pct"),
+        "gmgn_holders": safety.get("gmgn_holders"),
         "gates": gates,
     })
     return row

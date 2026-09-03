@@ -28,7 +28,7 @@ FWD_COLS: list[str] = []
 for _h in HORIZ:
     FWD_COLS += [f"price_{_h}", f"mcap_{_h}", f"ret_{_h}"]
 TAIL_COLS = ["max_ret_seen", "min_ret_seen", "rugged_after", "status",
-             "tp_alerted", "stop_alerted"]
+             "tp_alerted", "stop_alerted", "suspect_ticks"]
 COLUMNS = BASE_COLS + FWD_COLS + TAIL_COLS
 
 _EMPTY = ("", "nan", "None", "NaN")
@@ -77,7 +77,7 @@ def record_alerts(rows: list[dict], alert_ts: float, path: str | None = None) ->
             "rugcheck_score": r.get("rugcheck_score", ""),
             "max_ret_seen": 0.0, "min_ret_seen": 0.0,
             "rugged_after": False, "status": "open",
-            "tp_alerted": 0.0, "stop_alerted": False,
+            "tp_alerted": 0.0, "stop_alerted": False, "suspect_ticks": 0,
         })
         new.append(rec)
     if new:
@@ -120,6 +120,24 @@ def update_forward(now_s: float, snapshot_fn, report_fn=None,
         # (no price) counts as -100%.
         snap = snapshot_fn(mint) or {}
         cur_price = _num(snap.get("price_usd"))
+
+        # Quote-integrity gate (FOMO regression, 2026-09). Dexscreener re-picks the
+        # deepest pair on every call; a pair-switch (or broken tick) changes the price
+        # scale and once poisoned max_ret_seen with a 1283x that no horizon cell ever
+        # saw. Implied supply (mcap/price) is invariant across honest quotes, so a
+        # snapshot whose supply disagrees with the entry's by > SUPPLY_DRIFT_MAX is
+        # rejected wholesale — no ratchet, no exit events, no horizon fills this run
+        # (write-once cells stay empty and retry on the next run's quote). A dead
+        # token (no price at all) is NOT suspect: -100% stays the honest outcome.
+        cur_mcap = _num(snap.get("mcap"))
+        entry_mcap = _num(led.at[i, "entry_mcap"])
+        if cur_price > 0 and cur_mcap > 0 and entry_mcap > 0:
+            supply_ratio = (cur_mcap / cur_price) / (entry_mcap / entry)
+            if not (1.0 / config.SUPPLY_DRIFT_MAX <= supply_ratio
+                    <= config.SUPPLY_DRIFT_MAX):
+                led.at[i, "suspect_ticks"] = _num(led.at[i, "suspect_ticks"]) + 1
+                continue
+
         cur_ret = (cur_price / entry - 1.0) if cur_price > 0 else -1.0
         led.at[i, "max_ret_seen"] = max(cur_ret, _num(led.at[i, "max_ret_seen"]))
         led.at[i, "min_ret_seen"] = min(cur_ret, _num(led.at[i, "min_ret_seen"]))

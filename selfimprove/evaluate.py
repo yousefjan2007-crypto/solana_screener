@@ -51,10 +51,30 @@ PATHS = os.path.join(config.CACHE_DIR, "paths.jsonl")  # regenerable cache, not 
 TRIALS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trials.json")
 
 
-def load_paths(path: str | None = None) -> list:
+def _ledger_entry_prices() -> dict:
+    """mint -> Dexscreener entry price from the ledger (for the pool-mismatch gate)."""
+    try:
+        import ledger as LED
+        led = LED.load()
+        return {str(m): LED._num(p)
+                for m, p in zip(led["mint"], led["entry_price"])}
+    except Exception:
+        return {}
+
+
+def load_paths(path: str | None = None, ledger_entry: dict | None = None) -> list:
+    """paths.jsonl records, SANITIZED (2026-09 audit — both modes were found live):
+    - bars with v == 0 are dropped: a dead pool can print phantom highs on zero-volume
+      bars (STABLECAT showed an 804x high nobody could have transacted at);
+    - a record is dropped wholesale when its entry disagrees with the ledger's
+      Dexscreener entry price by >3x: GeckoTerminal picked a mispriced thin pool
+      (Girlet's was 71x off, inflating every multiple by 71x).
+    ledger_entry is injectable for tests; None loads the real ledger."""
     p = path or PATHS
     if not os.path.exists(p):
         return []
+    if ledger_entry is None:
+        ledger_entry = _ledger_entry_prices()
     out = []
     with open(p) as fh:
         for line in fh:
@@ -62,8 +82,15 @@ def load_paths(path: str | None = None) -> list:
                 r = json.loads(line)
             except Exception:
                 continue
-            if r.get("bars") and r.get("entry", 0) > 0:
-                out.append(r)
+            entry = r.get("entry", 0)
+            if entry <= 0:
+                continue
+            le = ledger_entry.get(str(r.get("mint")))
+            if le and le > 0 and not (1.0 / 3.0 <= entry / le <= 3.0):
+                continue
+            bars = [b for b in r.get("bars") or [] if (b.get("v") or 0) > 0]
+            if bars:
+                out.append(dict(r, bars=bars, n_bars=len(bars)))
     return out
 
 

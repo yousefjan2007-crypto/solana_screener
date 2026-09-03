@@ -159,6 +159,10 @@ LEDGER_HORIZONS = {"1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800}
 # tick and nothing is written that run. 1.5x holds on 1,602/1,604 legitimate ledger
 # rows (2026-09 audit); the FOMO row's fake 1283x high-water is the incident.
 SUPPLY_DRIFT_MAX = 1.5
+# After this many rejected runs the row goes terminally status="suspect" (stops being
+# polled, stays out of hit-rate denominators AS ITS OWN CATEGORY) — a real burn or a
+# provider supply correction would otherwise be rejected forever and poll forever.
+SUSPECT_TICKS_MAX = 5
 
 # ── paper execution (Jupiter quotes only — NO keys, NO funds, NO transactions) ─────
 # Measures the number the frictionless ledger can't: EXECUTION COST. A $10 round trip

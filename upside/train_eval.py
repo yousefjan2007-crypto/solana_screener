@@ -122,6 +122,7 @@ def main() -> None:
     cv = PurgedWalkForwardCV(t1=t1, n_splits=5, test_size=7,
                              embargo_frac=0.02, min_train_size=21)
     oos = pd.Series(np.nan, index=X.index)
+    fold_id = pd.Series(-1, index=X.index)
     fold_lines = []
     for k, (tr, te) in enumerate(cv.split(X)):
         tr_d, te_d = day.iloc[tr], day.iloc[te]
@@ -131,6 +132,7 @@ def main() -> None:
         est = estimator().fit(X.iloc[tr], y.iloc[tr])
         p = est.predict_proba(X.iloc[te])[:, 1]
         oos.iloc[te] = p
+        fold_id.iloc[te] = k
         auc = roc_auc_score(y.iloc[te], p)
         fold_lines.append(
             f"| {k} | {tr_d.min():%m-%d}→{tr_d.max():%m-%d} ({len(tr)}) "
@@ -142,13 +144,21 @@ def main() -> None:
 
     ok = oos.notna()
     po, yo, do, ro = oos[ok].values, y[ok].values, day[ok].values, res[ok].values
+    fo = fold_id[ok].values
     pooled_auc = roc_auc_score(yo, po)
     pooled_base = float(yo.mean())
 
+    # Operating points are PER-FOLD: the cutoff applied to a fold's rows is a quantile
+    # of that fold's own predictions only. A pooled-quantile threshold would let later
+    # folds' score levels set earlier folds' cutoffs (future information, and no
+    # deployable rule could reproduce it at alert time) and would concentrate the
+    # selection in whichever folds score high on an uncalibrated scale.
     ops = {}
     for label, frac in (("top-decile", 0.10), ("top-quintile", 0.20)):
-        thr = np.quantile(po, 1 - frac)
-        sel = po >= thr
+        sel = np.zeros(len(po), dtype=bool)
+        for k in np.unique(fo):
+            m = fo == k
+            sel |= m & (po >= np.quantile(po[m], 1 - frac))
         hit = float(yo[sel].mean())
         lo, hi = day_boot_precision(yo[sel].astype(float), do[sel])
         ops[label] = {"n": int(sel.sum()), "hit": hit, "lo": lo, "hi": hi}
@@ -206,7 +216,11 @@ def main() -> None:
               "- Any per-feature causal story (coefficients are descriptive).",
               "- Stability across regimes: 61 days of one summer is one regime.",
               "- The 1h-resolution rows' labels resolve within-bar ordering "
-              "pessimistically; the true rate there is bounded, not measured.", "",
+              "pessimistically; the true rate there is bounded, not measured — and a "
+              "coarse bar that OPENS inside the horizon can carry a TP that actually "
+              "occurred slightly past it.",
+              "- The CI90 resamples days with the flagged set held fixed: threshold/"
+              "selection variability is not in the interval.", "",
               "## Provenance", "",
               "- features: `upside/features.csv` (git-history first-occurrence rows "
               "of `data/latest_scan.json`; exact alert-time snapshots).",

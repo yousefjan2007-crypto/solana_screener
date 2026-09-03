@@ -88,7 +88,11 @@ def load_paths(path: str | None = None, ledger_entry: dict | None = None) -> lis
             le = ledger_entry.get(str(r.get("mint")))
             if le and le > 0 and not (1.0 / 3.0 <= entry / le <= 3.0):
                 continue
-            bars = [b for b in r.get("bars") or [] if (b.get("v") or 0) > 0]
+            # drop only bars whose volume is literally ZERO (phantom prints). A bar
+            # with v=None had no volume element in the feed at all — "missing" is not
+            # "zero", and dropping it would render a feed failure as silent absence.
+            bars = [b for b in r.get("bars") or []
+                    if b.get("v") is None or b["v"] > 0]
             if bars:
                 out.append(dict(r, bars=bars, n_bars=len(bars)))
     return out

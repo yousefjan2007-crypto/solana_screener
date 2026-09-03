@@ -2,7 +2,7 @@
 
 **Question.** Does anything the screener knows at alert time predict *2.0x before 0.5x within 12h* well enough to clear the 33% gross-EV breakeven of a 2x/0.5x bracket?
 
-**Verdict: the top-decile operating point does NOT clear the 33% breakeven.** Hit rate 27.5% (day-clustered CI90 [18.1%, 35.8%]) vs pooled OOS base rate 24.8% and the 33.3% breakeven line. Pooled out-of-sample AUC 0.546 on n=906 (of 1378 labeled alerts).
+**Verdict: the top-decile operating point does NOT clear the 33% breakeven.** Hit rate 29.0% (day-clustered CI90 [19.8%, 37.6%]) vs pooled OOS base rate 24.8% and the 33.3% breakeven line. Pooled out-of-sample AUC 0.546 on n=906 (of 1378 labeled alerts).
 
 REMINDER: gross of ALL execution costs; the livebook (which measures net of real quotes) remains the promotion authority. Not financial advice.
 
@@ -10,8 +10,8 @@ REMINDER: gross of ALL execution costs; the livebook (which measures net of real
 
 | point | n flagged | hit rate | day-clustered CI90 | base | breakeven |
 |---|---|---|---|---|---|
-| top-decile | 91 | 27.5% | [18.1%, 35.8%] | 24.8% | 33.3% |
-| top-quintile | 182 | 24.7% | [17.7%, 31.5%] | 24.8% | 33.3% |
+| top-decile | 93 | 29.0% | [19.8%, 37.6%] | 24.8% | 33.3% |
+| top-quintile | 184 | 27.2% | [21.0%, 33.0%] | 24.8% | 33.3% |
 
 ## Folds (PurgedWalkForwardCV, day-level, 12h label purge + embargo)
 
@@ -51,7 +51,8 @@ Top coefficients (FULL-SAMPLE fit — descriptive, in-sample, not evidence):
 - Any net-of-costs profitability (this is gross; slippage/impact on these pools measured -2%+ per round trip).
 - Any per-feature causal story (coefficients are descriptive).
 - Stability across regimes: 61 days of one summer is one regime.
-- The 1h-resolution rows' labels resolve within-bar ordering pessimistically; the true rate there is bounded, not measured.
+- The 1h-resolution rows' labels resolve within-bar ordering pessimistically; the true rate there is bounded, not measured — and a coarse bar that OPENS inside the horizon can carry a TP that actually occurred slightly past it.
+- The CI90 resamples days with the flagged set held fixed: threshold/selection variability is not in the interval.
 
 ## Provenance
 

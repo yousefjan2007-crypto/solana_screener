@@ -76,10 +76,15 @@ MIN_DAYS = config.MIN_BOOTSTRAP_CLUSTERS      # print floor
 PROMOTE_MIN_CLUSTERS = 40                     # promotion floor, from the coverage measurement
 DSR_GATE = 0.95           # signal_lab's promote gate, reused deliberately
 
-# Forward-only floors: a nominee is judged only on positions whose alert_seq postdates
-# its nomination; below these the forward sample is noise, and the nominee just waits.
+# Forward-only floors: a nominee is judged ONCE, on the pre-registered PREFIX of its
+# forward sample — the earliest forward positions satisfying both floors. Recomputing a
+# 2.5% bound on a growing sample and promoting at the first pass is a sequential test
+# with inflated type-I error (the same class of bug the 2026-08-15 rebuild measured),
+# so the sample is fixed by rule, not by when the cron happens to run. The day floor is
+# the SAME 40-cluster floor promotion check #5 uses — anything smaller advertises a bar
+# the checks don't actually accept.
 FWD_MIN_POSITIONS = 30
-FWD_MIN_DAYS = 5
+FWD_MIN_DAYS = PROMOTE_MIN_CLUSTERS
 
 
 def _day(ts: float) -> str:
@@ -102,7 +107,10 @@ def live_returns() -> tuple[dict, list, list]:
         rets = []
         for p in done:
             st = p["policies"].get(name)
-            rets.append(st["realized_usd"] / p["cost_usd"] - 1.0 if st else np.nan)
+            # A state backfilled MID-FLIGHT records fabricated economics ("exit at 3h"
+            # filled at deploy time) — tradeable for continuity, never scoreable.
+            ok = st and not st.get("backfilled_ts")
+            rets.append(st["realized_usd"] / p["cost_usd"] - 1.0 if ok else np.nan)
         out[name] = np.array(rets, dtype=float)
     return out, days, mints
 
@@ -183,7 +191,15 @@ def evaluate_all() -> dict:
         cr = []
         for p in done:
             st = p["policies"].get(cname)
-            cr.append(st["realized_usd"] / p["cost_usd"] - 1.0 if st else np.nan)
+            ok = st and not st.get("backfilled_ts")
+            if ok and cname == "ctl_random_exit":
+                # Quarantine the poisoned era: before 2026-09 the live book never read
+                # random_exit, so every such state closed as hold_to_end's alias
+                # (close_reason tracking_window_end/time_exit). Only rows the control
+                # actually acted on — or dead-coin closes, identical for everyone by
+                # construction — are admissible evidence.
+                ok = st.get("close_reason") in ("random_exit", "no_route")
+            cr.append(st["realized_usd"] / p["cost_usd"] - 1.0 if ok else np.nan)
         cr = np.array(cr, dtype=float)
         if cr.size and not np.all(np.isnan(cr)):
             ctl_rets[cname] = cr
@@ -204,9 +220,13 @@ def evaluate_all() -> dict:
                     res["inert_controls"].append(cname)
     for name, r in rets.items():
         lb, nd = cluster_boot(r, days)
-        row = {"n": int(np.sum(~np.isnan(r))), "mean": float(np.nanmean(r)),
+        ok_r = ~np.isnan(r)
+        row = {"n": int(ok_r.sum()), "mean": float(np.nanmean(r)),
                "median": float(np.nanmedian(r)),
-               "win_rate": float(np.nanmean(r > 0)), "day_lb": lb, "n_days": nd}
+               # over non-NaN only: nanmean(r > 0) counts a NaN position as a loss,
+               # deflating every late-added policy's win rate
+               "win_rate": float(np.mean(r[ok_r] > 0)) if ok_r.any() else float("nan"),
+               "day_lb": lb, "n_days": nd}
         if base is not None and name != champ:
             row["paired_mean"] = float(np.nanmean(r - base))
             row["paired_lb"] = paired_lb(r, base, days)
@@ -231,15 +251,28 @@ def evaluate_all() -> dict:
     # promotion-facing stats are recomputed on ONLY the positions whose alert_seq
     # postdates the nomination; once the forward floors are met, that pre-registered
     # sample REPLACES the nominee's table row and forward_only goes True.
-    res["max_alert_seq"] = max([p.get("alert_seq", -1) for p in done] or [-1])
+    # max over the WHOLE book, open positions included: an open position at nomination
+    # time predates the pre-registration and must never count as forward evidence.
+    res["max_alert_seq"] = max([p.get("alert_seq", -1) for p in book.values()] or [-1])
     nom = _champion_state()
     nominee, nom_seq = nom.get("nominee"), nom.get("nominated_at_alert_seq")
     if nominee and nominee in rets and nom_seq is not None:
-        fmask = np.array([p.get("alert_seq", -1) > nom_seq for p in done], dtype=bool)
+        # PRE-REGISTERED PREFIX: the earliest forward positions (time order) satisfying
+        # both floors, fixed by rule — later positions are excluded even after they
+        # complete, so the bound is computed exactly once on exactly one sample.
+        fmask = np.zeros(len(done), dtype=bool)
+        pref_days: set = set()
+        for j, p in enumerate(done):
+            if p.get("alert_seq", -1) <= nom_seq or np.isnan(rets[nominee][j]):
+                continue
+            if fmask.sum() >= FWD_MIN_POSITIONS and len(pref_days) >= FWD_MIN_DAYS:
+                break
+            fmask[j] = True
+            pref_days.add(days[j])
         fr = np.where(fmask, rets[nominee], np.nan)
         ok = ~np.isnan(fr)
         n_fwd = int(ok.sum())
-        nd_fwd = len({d for d, k in zip(days, ok) if k})
+        nd_fwd = len(pref_days)
         res["nomination"] = {"nominee": nominee, "nominated_at_alert_seq": nom_seq,
                              "n_forward": n_fwd, "days_forward": nd_fwd}
         if n_fwd >= FWD_MIN_POSITIONS and nd_fwd >= FWD_MIN_DAYS:
@@ -316,11 +349,16 @@ def decide(res: dict) -> dict:
         broken.append("INERT CONTROL: " + ", ".join(res["inert_controls"]) +
                       " is bit-identical to the champion on every position — an alias "
                       "of the champion cannot detect anything")
+    # Judgment-call arm, not a law of nature: in a sustained mania regime a random-hold
+    # exit CAN be genuinely profitable net of costs, and this check would then void runs
+    # in exactly the regime where the screen works. If it fires repeatedly during a
+    # strong tape, re-examine the check before trusting it.
     profitable_ctl = [n for n, r in ctl.items() if r.get("day_lb", -9) > 0]
     if profitable_ctl:
         broken.append("CONTROL PROFITABLE ON ITS OWN BOUND: " + ", ".join(profitable_ctl) +
-                      " — a do-nothing policy cannot beat round-trip costs on honest "
-                      "quotes; the measurement itself is corrupted")
+                      " — a do-nothing policy should not beat round-trip costs on honest "
+                      "quotes; treat the measurement as corrupted (or the regime as one "
+                      "this check cannot serve — see the comment above it)")
     if broken:
         return {"promote": False, "winner": None, "gate_broken": True,
                 "reasons": ["THE GATE IS MEASURING ITS OWN MACHINERY; no number from "
@@ -387,6 +425,11 @@ def decide(res: dict) -> dict:
             and res["n_positions"] >= MIN_POSITIONS
             and res["n_days"] >= PROMOTE_MIN_CLUSTERS):
         out["nominate"] = best
+    # The one-shot judgment: a nominee whose PRE-REGISTERED forward prefix has matured
+    # and still fails any check is terminally FAILED — main() clears the nomination and
+    # records it, instead of the nominee wedging the loop forever as a silent zombie.
+    if nom and res.get("forward_only") and failed:
+        out["nomination_failed"] = nom["nominee"]
     return out
 
 
@@ -445,11 +488,27 @@ def main() -> None:
     quiet = "--quiet" in sys.argv
     res = evaluate_all()
     verdict = decide(res)
-    if verdict.get("nominate"):
-        with open(CHAMPION_PATH, "w") as fh:
-            json.dump({"champion": res["champion"], "nominee": verdict["nominate"],
-                       "nominated_at_alert_seq": res.get("max_alert_seq", -1),
-                       "nominated_ts": res["ts"]}, fh, indent=1)
+
+    def _write_champion(state: dict) -> None:
+        # atomic: a crash mid-write must not leave invalid JSON that _champion_state()
+        # silently swallows into "no nomination ever happened"
+        tmp = CHAMPION_PATH + ".tmp"
+        with open(tmp, "w") as fh:
+            json.dump(state, fh, indent=1)
+        os.replace(tmp, CHAMPION_PATH)
+
+    prior = _champion_state()
+    if verdict.get("nomination_failed"):
+        _write_champion({"champion": res["champion"],
+                         "failed_nominee": verdict["nomination_failed"],
+                         "failed_ts": res["ts"],
+                         "failed_at_alert_seq": prior.get("nominated_at_alert_seq")})
+    elif verdict.get("nominate") and not prior.get("nominee"):
+        # never overwrite a live nomination — even one whose policy was since renamed:
+        # a pre-registration that can be silently replaced is not a pre-registration
+        _write_champion({"champion": res["champion"], "nominee": verdict["nominate"],
+                         "nominated_at_alert_seq": res.get("max_alert_seq", -1),
+                         "nominated_ts": res["ts"]})
     path = write_proposal(res, verdict)
     with open(HISTORY_PATH, "a") as fh:
         fh.write(json.dumps({"ts": res["ts"], "n": res["n_positions"],
@@ -480,9 +539,15 @@ def main() -> None:
         print("\n  NO CHANGE. blocking:")
         for r in verdict["reasons"]:
             print(f"    - {r}")
-    if verdict.get("nominate"):
+    if verdict.get("nomination_failed"):
+        print(f"\n  NOMINATION FAILED -> {verdict['nomination_failed']} judged once on its "
+              f"pre-registered forward prefix and did not clear; nomination cleared.")
+    elif verdict.get("nominate") and not prior.get("nominee"):
         print(f"\n  NOMINATED -> {verdict['nominate']}  (forward-only trial starts at "
               f"alert_seq {res.get('max_alert_seq', -1)}; champion.json updated)")
+    elif verdict.get("nominate"):
+        print(f"\n  (would nominate {verdict['nominate']}, but a prior nomination for "
+              f"`{prior.get('nominee')}` is still on file — clear it by hand first)")
     # A lead is not evidence. Show how often each policy has topped the table across runs, so a
     # six-week winning streak out of pure noise is visible as such rather than persuasive.
     if os.path.exists(HISTORY_PATH):

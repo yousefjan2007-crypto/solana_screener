@@ -193,6 +193,38 @@ def main() -> None:
         check("a dead coin still records -100% (absence of a quote is NOT suspect)",
               float(led.at[0, "ret_6h"]) == -1.0
               and float(led.at[0, "suspect_ticks"]) == 1.0)
+        # A LEGIT supply change would fail the gate on every honest quote forever —
+        # after SUSPECT_TICKS_MAX rejections the row must go terminally 'suspect'
+        # (its own summary category, never "still maturing") and stop being polled.
+        for k in range(ledger.config.SUSPECT_TICKS_MAX - 1):
+            ledger.update_forward(21800.0 + k,
+                                  lambda m: {"price_usd": 500.0, "mcap": 1000.0},
+                                  path=tmp)
+        led = ledger.load(tmp)
+        check("persistent supply shift goes terminally 'suspect' at SUSPECT_TICKS_MAX",
+              str(led.at[0, "status"]) == "suspect"
+              and float(led.at[0, "suspect_ticks"]) == ledger.config.SUSPECT_TICKS_MAX)
+        f4, _ = ledger.update_forward(
+            40000.0, lambda m: {"price_usd": 2.0, "mcap": 2000.0}, path=tmp)
+        check("suspect rows are never polled or written again", f4 == 0)
+        # Pre-migration CSV (no suspect_ticks column yet — the cloud writes those for a
+        # while after merge) must survive the incident path, not KeyError inside it.
+        tmp2 = tempfile.mktemp(suffix="_verify_old.csv")
+        try:
+            ledger.record_alerts(
+                [{"mint": "MOLD", "symbol": "TO", "tier": "B", "price": 1.0,
+                  "mcap": 1000.0, "liq": 1, "score": 50, "gates": {}}],
+                alert_ts=0.0, path=tmp2)
+            old = ledger.pd.read_csv(tmp2).drop(columns=["suspect_ticks"])
+            old.to_csv(tmp2, index=False)
+            f5, _ = ledger.update_forward(
+                3600.0, lambda m: {"price_usd": 500.0, "mcap": 1000.0}, path=tmp2)
+            led2 = ledger.load(tmp2)
+            check("a pre-migration CSV survives the incident path (no KeyError)",
+                  f5 == 0 and float(led2.at[0, "suspect_ticks"]) == 1.0)
+        finally:
+            if os.path.exists(tmp2):
+                os.remove(tmp2)
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
@@ -458,14 +490,21 @@ def main() -> None:
         check("random_exit control acts in the live book (no hold_to_end alias)",
               st_r["closed"] and st_r.get("close_reason") == "random_exit"
               and not st_h["closed"])
+        # The hold must equal the sha256-derived draw exactly — recomputing it HERE
+        # (independent of _step_policy's internals) pins the algorithm, so a switch to
+        # process-salted hash() or an unseeded rng fails this check.
+        import hashlib as _hl
+        import numpy as _np
+        _seed = config.SEED + int(_hl.sha256(b"RNDX").hexdigest()[:8], 16)
+        _hold = float(_np.random.default_rng(_seed).uniform(0.0, LB.DECISION_HORIZON_S))
         st_r2 = {"remaining": 1.0, "peak_px": 1.0, "rungs_left": None,
                  "realized_usd": 0.0, "closed": False}
-        LB._step_policy(pos_r, "ctl_random_exit", st_r2, 1.0, 1.0, 10.0, 60.0)
+        LB._step_policy(pos_r, "ctl_random_exit", st_r2, 1.0, _hold * 0.999, 10.0, 60.0)
         st_r3 = {"remaining": 1.0, "peak_px": 1.0, "rungs_left": None,
                  "realized_usd": 0.0, "closed": False}
-        LB._step_policy(pos_r, "ctl_random_exit", st_r3, 1.0, 1.0, 10.0, 60.0)
-        check("random_exit is deterministic per mint (same tick, same decision)",
-              st_r2["closed"] == st_r3["closed"])
+        LB._step_policy(pos_r, "ctl_random_exit", st_r3, 1.0, _hold + 1.0, 10.0, 60.0)
+        check("random_exit fires exactly at its sha256-derived hold (stable seed)",
+              (not st_r2["closed"]) and st_r3["closed"])
     finally:
         LB.BOOK_PATH, LB.FILLS_PATH, LB.TICKS_PATH = real
         shutil.rmtree(tmpd, ignore_errors=True)

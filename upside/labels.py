@@ -42,8 +42,9 @@ def first_passage(entry: float, bars: list, alert_ts: float) -> dict:
         if b["ts"] - alert_ts > HORIZON_S:
             break
         hit_tp = b.get("h", 0) >= tp_px
-        hit_sl = b.get("l", 0) > 0 and b["l"] <= sl_px
-        if hit_tp and hit_sl:                 # both inside one bar: order unknowable
+        broken_low = not (b.get("l", 0) > 0)  # corrupt/zero low: pessimistic, not skipped
+        hit_sl = (not broken_low) and b["l"] <= sl_px
+        if hit_tp and (hit_sl or broken_low):  # both inside one bar / TP on a corrupt bar
             return {"label": 0, "outcome": "ambiguous_bar"}
         if hit_sl:
             return {"label": 0, "outcome": "sl"}

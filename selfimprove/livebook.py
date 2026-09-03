@@ -401,8 +401,14 @@ def tick(now_s: float, *, quote_fn=quote, verbose: bool = True) -> dict:
         # A position opened before a policy existed has no state for it. Backfill rather than
         # KeyError: the family grows over time (negative controls were added after this book had
         # live positions), and a missing key must never be able to halt the tick loop.
+        # But a state born MID-FLIGHT records fabricated economics — a sell_3h backfilled onto
+        # a 5h-old position "exits at 3h" at the deploy-time price — so it is stamped and the
+        # scorer (improve.live_returns) excludes stamped states from every statistic.
         for name in list(POL.POLICIES) + list(getattr(POL, "CONTROLS", {})):
-            pos["policies"].setdefault(name, _new_policy_state())
+            if name not in pos["policies"]:
+                st_new = _new_policy_state()
+                st_new["backfilled_ts"] = now_s
+                pos["policies"][name] = st_new
         usd_full = int(q["outAmount"]) / 1e6
         px = usd_full / pos["tokens_raw"]
         pos["n_ticks"] += 1

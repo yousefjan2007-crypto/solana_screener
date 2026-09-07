@@ -378,5 +378,15 @@
     "tokens_remaining_raw": 71328633862,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "58dyFwA5Gpo66DPv9MWmsqqgEG1qpRkwg3HX2fSLpump": {
+    "symbol": "OTC",
+    "tier": "A",
+    "opened_ts": 1788819603.1743813,
+    "cost_usd": 10.0,
+    "tokens_raw": 10892530526,
+    "tokens_remaining_raw": 10892530526,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

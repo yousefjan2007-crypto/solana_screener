@@ -388,5 +388,15 @@
     "tokens_remaining_raw": 10892530526,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "FjhTgMeDgSE2bfo9nHsPtvZanJrDGtVye78a1garpump": {
+    "symbol": "AGI",
+    "tier": "A",
+    "opened_ts": 1788889955.1643395,
+    "cost_usd": 10.0,
+    "tokens_raw": 9415612610,
+    "tokens_remaining_raw": 9415612610,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

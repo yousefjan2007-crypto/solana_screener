@@ -448,5 +448,15 @@
     "tokens_remaining_raw": 70954648410,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "3nkVw4JwdDLGM23Wzqpy2ptAPV5YgMnokEBgijDBpump": {
+    "symbol": "bikecate",
+    "tier": "A",
+    "opened_ts": 1789422845.157431,
+    "cost_usd": 10.0,
+    "tokens_raw": 12283960991,
+    "tokens_remaining_raw": 12283960991,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

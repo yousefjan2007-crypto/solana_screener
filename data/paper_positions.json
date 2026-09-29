@@ -488,5 +488,15 @@
     "tokens_remaining_raw": 14143390744,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "6Vuz122BbhCoBSXLH94JdMamHAJhRGBKGJJ1i2TWpump": {
+    "symbol": "CROCS",
+    "tier": "A",
+    "opened_ts": 1790725113.5261228,
+    "cost_usd": 10.0,
+    "tokens_raw": 103050280649,
+    "tokens_remaining_raw": 103050280649,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

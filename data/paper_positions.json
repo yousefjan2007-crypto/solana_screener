@@ -498,5 +498,15 @@
     "tokens_remaining_raw": 103050280649,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "2d79yirWWZmzf249y7B4DMvgaSb7jgrCxrwTcweFpump": {
+    "symbol": "STOCK",
+    "tier": "A",
+    "opened_ts": 1790735242.3007443,
+    "cost_usd": 10.0,
+    "tokens_raw": 25425482763,
+    "tokens_remaining_raw": 25425482763,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

@@ -508,5 +508,15 @@
     "tokens_remaining_raw": 25425482763,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "6ZG6fMHaE7NpubJr16G8nFLBg91rH5kU5SVpqUmQpump": {
+    "symbol": "AIRPAD",
+    "tier": "A",
+    "opened_ts": 1790783485.2020178,
+    "cost_usd": 10.0,
+    "tokens_raw": 10664094761,
+    "tokens_remaining_raw": 10664094761,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

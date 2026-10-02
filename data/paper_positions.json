@@ -538,5 +538,15 @@
     "tokens_remaining_raw": 15944272006,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "2AKrTTVNsxhHV2FLNBWUBv6W6Vq35VJMuiAhjsKjpump": {
+    "symbol": "ANON",
+    "tier": "A",
+    "opened_ts": 1790982187.0503461,
+    "cost_usd": 10.0,
+    "tokens_raw": 10325713962,
+    "tokens_remaining_raw": 10325713962,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

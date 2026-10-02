@@ -528,5 +528,15 @@
     "tokens_remaining_raw": 0,
     "realized_usd": 0.133144,
     "closed": true
+  },
+  "EFtMJryTCBdDcc7MS1wnsW41wD6edXcvLkUvH3v1pump": {
+    "symbol": "SIP",
+    "tier": "A",
+    "opened_ts": 1790949894.4956055,
+    "cost_usd": 10.0,
+    "tokens_raw": 15944272006,
+    "tokens_remaining_raw": 15944272006,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

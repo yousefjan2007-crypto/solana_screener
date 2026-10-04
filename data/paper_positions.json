@@ -568,5 +568,15 @@
     "tokens_remaining_raw": 18786468589,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "J6yUJLiLywR9CugELcdkpPjG6eZN3FVjHUjMP5jXpump": {
+    "symbol": "SA",
+    "tier": "A",
+    "opened_ts": 1791103885.8735986,
+    "cost_usd": 10.0,
+    "tokens_raw": 13194251723,
+    "tokens_remaining_raw": 13194251723,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

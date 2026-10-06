@@ -588,5 +588,15 @@
     "tokens_remaining_raw": 55886655556,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "BrUimx7KncgRNTggAdZdaX2s5XUqQyR6XMRmEg4mpump": {
+    "symbol": "MINTRO",
+    "tier": "A",
+    "opened_ts": 1791276765.3350577,
+    "cost_usd": 10.0,
+    "tokens_raw": 10220726193,
+    "tokens_remaining_raw": 10220726193,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

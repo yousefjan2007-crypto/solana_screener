@@ -578,5 +578,15 @@
     "tokens_remaining_raw": 13194251723,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "AsyWkgzTJD2VsiJYf7DSjs6LFyvMFZ6ojeVoEBvupump": {
+    "symbol": "swordcali",
+    "tier": "A",
+    "opened_ts": 1791251537.7307806,
+    "cost_usd": 10.0,
+    "tokens_raw": 55886655556,
+    "tokens_remaining_raw": 55886655556,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

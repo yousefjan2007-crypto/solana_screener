@@ -608,5 +608,15 @@
     "tokens_remaining_raw": 9491819387,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "45VHsie7CwFfPKWCw28PCdZdJWMA5Y6k56wDam9Hpump": {
+    "symbol": "RARINU",
+    "tier": "A",
+    "opened_ts": 1791374709.3542154,
+    "cost_usd": 10.0,
+    "tokens_raw": 5873914587,
+    "tokens_remaining_raw": 5873914587,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

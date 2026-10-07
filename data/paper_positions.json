@@ -598,5 +598,15 @@
     "tokens_remaining_raw": 10220726193,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "FAopSovS2WFJK5qEAmcuwAVH98CvmBwT6Lpq4EK2pump": {
+    "symbol": "A1",
+    "tier": "A",
+    "opened_ts": 1791352154.3381033,
+    "cost_usd": 10.0,
+    "tokens_raw": 9491819387,
+    "tokens_remaining_raw": 9491819387,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

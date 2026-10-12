@@ -658,5 +658,15 @@
     "tokens_remaining_raw": 4484179013,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "A8JUiZLzjGAsKxE74evdspHcuW4hvhPbvryDhaDZpump": {
+    "symbol": "FIGHT",
+    "tier": "A",
+    "opened_ts": 1791841853.5868907,
+    "cost_usd": 10.0,
+    "tokens_raw": 43397756144,
+    "tokens_remaining_raw": 43397756144,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

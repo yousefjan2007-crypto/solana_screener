@@ -648,5 +648,15 @@
     "tokens_remaining_raw": 7866193870,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "8PGyHCKvSUjezHkV7KLwMacnmSJLe1YbRM1zvDVApump": {
+    "symbol": "SEAN",
+    "tier": "A",
+    "opened_ts": 1791812056.2050288,
+    "cost_usd": 10.0,
+    "tokens_raw": 4484179013,
+    "tokens_remaining_raw": 4484179013,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

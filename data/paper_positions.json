@@ -668,5 +668,15 @@
     "tokens_remaining_raw": 43397756144,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "5x6QQvpRpd1PsFTTTJe6sJFFSqrA21H1j3GZLmo2pump": {
+    "symbol": "FTR",
+    "tier": "A",
+    "opened_ts": 1792317375.0934134,
+    "cost_usd": 10.0,
+    "tokens_raw": 9743461166,
+    "tokens_remaining_raw": 9743461166,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

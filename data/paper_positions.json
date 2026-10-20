@@ -708,5 +708,15 @@
     "tokens_remaining_raw": 0,
     "realized_usd": 0.021108,
     "closed": true
+  },
+  "Cv37ZBhXDgza5cgePpjHshEXz9JPsLNcwUAQrBgcpump": {
+    "symbol": "aDOGymous",
+    "tier": "A",
+    "opened_ts": 1792482214.0838509,
+    "cost_usd": 10.0,
+    "tokens_raw": 35925799234,
+    "tokens_remaining_raw": 35925799234,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

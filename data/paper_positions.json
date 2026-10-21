@@ -718,5 +718,25 @@
     "tokens_remaining_raw": 35925799234,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "AMuS3KCHeipZwTZmEFRuzW6Dr9YMYksWU8Rgboaupump": {
+    "symbol": "KIMCHIBOSS",
+    "tier": "A",
+    "opened_ts": 1792575319.1673574,
+    "cost_usd": 10.0,
+    "tokens_raw": 20769794065,
+    "tokens_remaining_raw": 20769794065,
+    "realized_usd": 0.0,
+    "closed": false
+  },
+  "4wopERxtKHjzaANSywo9BVVycGJ7q7uXJ38Q6EoCpump": {
+    "symbol": "Pokecity",
+    "tier": "A",
+    "opened_ts": 1792575319.1673574,
+    "cost_usd": 10.0,
+    "tokens_raw": 13391648246,
+    "tokens_remaining_raw": 13391648246,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

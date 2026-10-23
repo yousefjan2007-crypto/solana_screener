@@ -738,5 +738,15 @@
     "tokens_remaining_raw": 13391648246,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "HqaUT1abZq6WkeRpCYD7yHNdcxgu6biXejNkeJUNpump": {
+    "symbol": "VIRTUAL",
+    "tier": "A",
+    "opened_ts": 1792717272.2820313,
+    "cost_usd": 10.0,
+    "tokens_raw": 33531045749,
+    "tokens_remaining_raw": 33531045749,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

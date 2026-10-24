@@ -768,5 +768,15 @@
     "tokens_remaining_raw": 49684863879,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "3YYqFkPaob7SzUCyk59DGVhPZK1LN9odKMJc1uy3pump": {
+    "symbol": "TRUMP",
+    "tier": "A",
+    "opened_ts": 1792853343.9856403,
+    "cost_usd": 10.0,
+    "tokens_raw": 14393978977,
+    "tokens_remaining_raw": 14393978977,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

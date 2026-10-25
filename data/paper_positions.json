@@ -788,5 +788,15 @@
     "tokens_remaining_raw": 40296995105,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "3SVjZ7BfT9FxiR49nZc7UdBmLgzRLJY7XBZDKhEFpump": {
+    "symbol": "SWORDOPE",
+    "tier": "A",
+    "opened_ts": 1792936663.6211202,
+    "cost_usd": 10.0,
+    "tokens_raw": 6405454129,
+    "tokens_remaining_raw": 6405454129,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

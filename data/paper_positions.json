@@ -808,5 +808,15 @@
     "tokens_remaining_raw": 19410939673,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "27Qg7EcnGfmbthfQeQXTs4qjfnvU6gXf8W1ahJiJpump": {
+    "symbol": "ELON2028",
+    "tier": "A",
+    "opened_ts": 1793103908.6663182,
+    "cost_usd": 10.0,
+    "tokens_raw": 81944656199,
+    "tokens_remaining_raw": 81944656199,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

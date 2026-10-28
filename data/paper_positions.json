@@ -828,5 +828,15 @@
     "tokens_remaining_raw": 12953062779,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "AZdhikmyj6ibsejv7EjML9SfNmuiMvwDrKXTEU2zpump": {
+    "symbol": "Something",
+    "tier": "A",
+    "opened_ts": 1793172681.9002712,
+    "cost_usd": 10.0,
+    "tokens_raw": 7107791218,
+    "tokens_remaining_raw": 7107791218,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

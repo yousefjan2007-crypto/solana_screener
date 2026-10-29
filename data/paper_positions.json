@@ -845,7 +845,17 @@
     "opened_ts": 1793197514.7670987,
     "cost_usd": 10.0,
     "tokens_raw": 76500175911,
-    "tokens_remaining_raw": 76500175911,
+    "tokens_remaining_raw": 0,
+    "realized_usd": 0.221318,
+    "closed": true
+  },
+  "FEXGegqeVm5vZurqyC7qsmkLqWspVV1ACb9bbLvcpump": {
+    "symbol": "DUBBLE",
+    "tier": "A",
+    "opened_ts": 1793267272.921379,
+    "cost_usd": 10.0,
+    "tokens_raw": 6111719800,
+    "tokens_remaining_raw": 6111719800,
     "realized_usd": 0.0,
     "closed": false
   }

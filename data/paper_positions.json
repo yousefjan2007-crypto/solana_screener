@@ -858,5 +858,15 @@
     "tokens_remaining_raw": 6111719800,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "5wsjHxT5nW5jQuVupXUNnYszF3WoWCfGGk9LMcsCJzY8": {
+    "symbol": "STANK",
+    "tier": "A",
+    "opened_ts": 1793308966.2490292,
+    "cost_usd": 10.0,
+    "tokens_raw": 77774544789,
+    "tokens_remaining_raw": 77774544789,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

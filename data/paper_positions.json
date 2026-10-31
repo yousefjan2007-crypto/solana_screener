@@ -878,5 +878,15 @@
     "tokens_remaining_raw": 0,
     "realized_usd": 0.021777,
     "closed": true
+  },
+  "EYqygbhZjP7EbM4fSn8devctnksAvPAD1Bt57XBFpump": {
+    "symbol": "BNB",
+    "tier": "A",
+    "opened_ts": 1793472726.4418967,
+    "cost_usd": 10.0,
+    "tokens_raw": 31463142338,
+    "tokens_remaining_raw": 31463142338,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

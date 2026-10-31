@@ -875,8 +875,8 @@
     "opened_ts": 1793388560.0129578,
     "cost_usd": 10.0,
     "tokens_raw": 8548043062,
-    "tokens_remaining_raw": 8548043062,
-    "realized_usd": 0.0,
-    "closed": false
+    "tokens_remaining_raw": 0,
+    "realized_usd": 0.021777,
+    "closed": true
   }
 }

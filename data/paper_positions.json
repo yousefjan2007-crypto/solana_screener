@@ -898,5 +898,15 @@
     "tokens_remaining_raw": 11623443354,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "FdKdpz11GsTofLaNiddrhxrsE4APZYSSfLFqQ9YKpump": {
+    "symbol": "SIS",
+    "tier": "A",
+    "opened_ts": 1793517851.7078235,
+    "cost_usd": 10.0,
+    "tokens_raw": 24841601855,
+    "tokens_remaining_raw": 24841601855,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

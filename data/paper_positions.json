@@ -938,5 +938,15 @@
     "tokens_remaining_raw": 14481129890,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "FpWWSqLNrjTTMDM41EXkvBmHBDkNdWrf9RwHL57xpump": {
+    "symbol": "VI",
+    "tier": "A",
+    "opened_ts": 1793832577.1896963,
+    "cost_usd": 10.0,
+    "tokens_raw": 27190103508,
+    "tokens_remaining_raw": 27190103508,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

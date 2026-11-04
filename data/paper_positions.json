@@ -925,9 +925,9 @@
     "opened_ts": 1793723898.6798656,
     "cost_usd": 10.0,
     "tokens_raw": 51811097275,
-    "tokens_remaining_raw": 51811097275,
-    "realized_usd": 0.0,
-    "closed": false
+    "tokens_remaining_raw": 0,
+    "realized_usd": 0.200106,
+    "closed": true
   },
   "4nuj5NLHMtQSezfmz6CwBpCRJisFie6F6MxNNz1dpump": {
     "symbol": "Ahsoka",

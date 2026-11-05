@@ -948,5 +948,15 @@
     "tokens_remaining_raw": 27190103508,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "9Y1F6dZ6HpjZDYZdYuUGwMbkUiPsyU7WPTqTQU4Tpump": {
+    "symbol": "Democat",
+    "tier": "A",
+    "opened_ts": 1793875387.909273,
+    "cost_usd": 10.0,
+    "tokens_raw": 14890644863,
+    "tokens_remaining_raw": 14890644863,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

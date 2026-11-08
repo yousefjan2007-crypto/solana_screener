@@ -978,5 +978,15 @@
     "tokens_remaining_raw": 11662078379,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "483nprwoMSoGQgrojSHWiePMbKPre7ZRDy4f8YNSpump": {
+    "symbol": "HEREWEGO",
+    "tier": "A",
+    "opened_ts": 1794175023.0610616,
+    "cost_usd": 10.0,
+    "tokens_raw": 6899264344,
+    "tokens_remaining_raw": 6899264344,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

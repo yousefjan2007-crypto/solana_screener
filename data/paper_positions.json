@@ -998,5 +998,15 @@
     "tokens_remaining_raw": 5758461615,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "8AAVuQpJcqpvCuutxyBTVvgBEXZJSkZoNv1sExpBpump": {
+    "symbol": "NOBUSHIBA",
+    "tier": "A",
+    "opened_ts": 1794516937.5569065,
+    "cost_usd": 10.0,
+    "tokens_raw": 13146369996,
+    "tokens_remaining_raw": 13146369996,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

@@ -1018,5 +1018,15 @@
     "tokens_remaining_raw": 17938305786,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "B2YpP21vQBESJ2jtnuhPujEUT61KVRxZ2X5gsDcUpump": {
+    "symbol": "JENSEN",
+    "tier": "A",
+    "opened_ts": 1794671589.8115416,
+    "cost_usd": 10.0,
+    "tokens_raw": 13820853456,
+    "tokens_remaining_raw": 13820853456,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

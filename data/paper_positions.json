@@ -1058,5 +1058,15 @@
     "tokens_remaining_raw": 34677169442,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "HF2RBPrfNBk9TxggL2cYZFEKSgirzh5HKCngLENTpump": {
+    "symbol": "LOOSY",
+    "tier": "A",
+    "opened_ts": 1795200376.1374094,
+    "cost_usd": 10.0,
+    "tokens_raw": 34648251484,
+    "tokens_remaining_raw": 34648251484,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

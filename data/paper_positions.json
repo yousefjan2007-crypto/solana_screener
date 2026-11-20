@@ -1048,5 +1048,15 @@
     "tokens_remaining_raw": 57166991995,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "7bCiddGLe5aM8HE2pigT9jsqkmC1HSPxyXN6GkHEpump": {
+    "symbol": "OGTA",
+    "tier": "A",
+    "opened_ts": 1795170234.1183176,
+    "cost_usd": 10.0,
+    "tokens_raw": 34677169442,
+    "tokens_remaining_raw": 34677169442,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }

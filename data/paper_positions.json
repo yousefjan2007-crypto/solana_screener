@@ -1078,5 +1078,15 @@
     "tokens_remaining_raw": 12952250055,
     "realized_usd": 0.0,
     "closed": false
+  },
+  "93uamrbDerKbUh8MSjNF1wDtxYvEUD1CS9BcHn1apump": {
+    "symbol": "PumpMeme",
+    "tier": "A",
+    "opened_ts": 1795473835.0122104,
+    "cost_usd": 10.0,
+    "tokens_raw": 23555842987,
+    "tokens_remaining_raw": 23555842987,
+    "realized_usd": 0.0,
+    "closed": false
   }
 }
